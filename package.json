@@ -1,0 +1,20 @@
+{
+  "name": "jon-database-management",
+  "version": "1.0.0",
+  "description": "Database Design Project (COS 20031) - PostgreSQL 18 Setup",
+  "keywords": ["postgresql", "database", "university", "cos20031"],
+  "author": "Jon",
+  "license": "MIT",
+  "scripts": {
+    "db:setup": "chmod +x scripts/setup-database.sh && ./scripts/setup-database.sh",
+    "db:start": "docker-compose up -d",
+    "db:stop": "docker-compose stop",
+    "db:restart": "docker-compose restart",
+    "db:logs": "docker-compose logs -f postgres",
+    "db:connect": "docker-compose exec postgres psql -U jondb_admin -d jon_database_dev",
+    "db:reset": "docker-compose down -v && echo 'Database reset! Run npm run db:start to restart'",
+    "db:status": "docker-compose ps",
+    "db:backup": "docker-compose exec postgres pg_dump -U jondb_admin jon_database_dev > database/backups/backup_$(date +%Y%m%d_%H%M%S).sql",
+    "pgadmin": "echo 'pgAdmin available at: http://localhost:8080'"
+  }
+}
