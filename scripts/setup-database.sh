@@ -76,7 +76,7 @@ echo "⏳ Waiting for PostgreSQL to be ready..."
 echo "   This may take 30-60 seconds for first-time setup..."
 
 for i in {1..120}; do
-    if $COMPOSE_CMD exec -T postgres pg_isready -U postgres > /dev/null 2>&1; then
+    if $COMPOSE_CMD exec -T postgres pg_isready -U jondb_admin > /dev/null 2>&1; then
         echo ""
         echo "✅ PostgreSQL 18 is ready and healthy!"
         break
@@ -126,14 +126,13 @@ echo "🛠️  Useful Commands:"
 echo "   Start services:    $COMPOSE_CMD up -d"
 echo "   Stop services:     $COMPOSE_CMD stop"
 echo "   View logs:         $COMPOSE_CMD logs -f postgres"
-echo "   Connect to DB:     $COMPOSE_CMD exec postgres psql -U postgres -d jon_database_dev"
+echo "   Connect to DB:     $COMPOSE_CMD exec postgres psql -U jondb_admin -d jon_database_dev"
 echo "   Reset database:    $COMPOSE_CMD down -v && $COMPOSE_CMD up -d"
 echo "   Check status:      $COMPOSE_CMD ps"
 echo ""
-echo "📚 For your Database Design Project:"
+echo "📚 For our Database:"
 echo "   - Use pgAdmin for visual database management"
 echo "   - Create your tables in the 'app' schema"
-echo "   - Document your database design"
+echo "   - Document our database design"
 echo "   - Use migrations for version control"
 echo ""
-echo "🚀 Ready for development! Good luck with COS 20031!"
