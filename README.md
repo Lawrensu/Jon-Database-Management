@@ -50,3 +50,7 @@ npm run pgadmin      # Show pgAdmin URL
 - Create tables in the `app` schema
 - Use pgAdmin for visual design
 - Document database structure
+
+<!-- ## Port Configuration
+
+Using port 5433 to avoid conflicts with local PostgreSQL installations on port 5432. -->
