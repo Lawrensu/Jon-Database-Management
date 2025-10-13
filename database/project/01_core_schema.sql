@@ -1,0 +1,18 @@
+-- PAKAR Tech Healthcare Database - Core Schema
+-- COS 20031 Database Design Project
+-- Authors: [Lawrence], [Jonathan]
+
+-- ============================================================================
+-- IMPORTANT: Read Before Editing
+-- ============================================================================
+-- This file contains the CORE database schema for PAKAR Tech Healthcare.
+-- Any changes here affect the entire system!
+--
+-- Design Principles:
+-- 1. All tables use UUID primary keys for scalability
+-- 2. Every table has created_at and updated_at timestamps
+-- 3. Use CITEXT for case-insensitive text (emails, usernames)
+-- 4. Follow naming convention: lowercase_with_underscores
+-- 5. Add indexes on foreign keys and frequently queried columns
+--
+-- ============================================================================
