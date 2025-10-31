@@ -39,3 +39,20 @@ lerna-debug.log*
 *.backup
 database/backups/*.sql
 !database/backups/example.sql
+
+# Environment files with secrets
+.env
+
+# Database data directories
+postgres_data/
+pgadmin_data/
+database/backups/*.sql
+
+# DO NOT ignore .psqlrc - it's a team configuration
+# .psqlrc  <- REMOVED THIS LINE
+
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
