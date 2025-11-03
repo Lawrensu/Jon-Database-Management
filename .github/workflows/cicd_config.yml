@@ -82,28 +82,5 @@ jobs:
         env:
           PGPASSWORD: JonathanBangerDatabase26!
         run: |
-          echo "Running initialization scripts..."
-          # Loop through all .sql files in the init directory and execute them
-          for file in ./database/init/*.sql; do
-            if [ -f "$file" ]; then
-              echo "Executing $file..."
-              psql -h localhost -U jondb_admin -d jon_database_dev -f "$file"
-            fi
-          done
-          echo "Initialization complete."
-
-      # Step 4: (Example for Node.js) Install dependencies
-      # Replace this with your project's dependency manager
-      - name: Install Node.js dependencies
-        run: npm ci
-
-      # Step 5: Run your application tests
-      # The environment variables here MUST match the service container's configuration.
-      - name: Run tests
-        env:
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_USER: jondb_admin
-          DB_PASSWORD: JonathanBangerDatabase26!
-          DB_NAME: jon_database_dev
-        run: npm test
+          echo Add other actions to build,
+          echo test, and deploy your project.
