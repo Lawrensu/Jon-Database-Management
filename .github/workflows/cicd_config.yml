@@ -1,22 +1,109 @@
-name: CI
+# A descriptive name for your workflow
+name: CI with PostgreSQL Database
 
+# Controls when the workflow will run
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
-  workflow_dispatch:
 jobs:
-  build:
+  # A single job in this workflow, named "test"
+  test:
     runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v4
+    # Service containers to run with `test` job
+    services:
+      # Label used to access the service container
+      postgres:
+        # CORRECTED: Use a valid, specific PostgreSQL version.
+        image: postgres:16
 
-      - name: Run a one-line script
-        run: echo Its's preeaaammm, Choom!
-      - name: Run a multi-line script
+        # Environment variables from your docker-compose.yml
+        env:
+          POSTGRES_USER: jondb_admin
+          POSTGRES_PASSWORD: JonathanBangerDatabase26!
+          POSTGRES_DB: jon_database_dev
+          # Include the initialization arguments
+          POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8"
+
+        # Health check options from your docker-compose.yml
+        options: >-
+          --health-cmd "pg_isready -U jondb_admin -d jon_database_dev"
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 3
+          --health-start-period 40s
+        
+        # Map the container port to the host
+        ports:
+          - 5432:5432
+
+    steps:
+      # Step 1: Check out your repository code
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      # Step 2: Install PostgreSQL Client
+      # We need the psql client to run the initialization scripts.
+      - name: Install PostgreSQL Client
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      # Step 3: Run Database Initialization Scripts
+      # This step replaces the volume mount for /docker-entrypoint-initdb.d
+      - name: Run database initialization scripts
+        env:
+          PGPASSWORD: JonathanBangerDatabase26!
+        run: |
+          echo "Running initialization scripts..."
+          # Loop through all .sh and .sql files in the init directory
+          for file in ./database/init/*; do
+            if [ -f "$file" ]; then
+              echo "Executing $file..."
+              if [[ "$file" == *.sh ]]; then
+                # For shell scripts, run them inside the container
+                docker exec jon-database-postgres bash "/docker-entrypoint-initdb.d/$(basename "$file")"
+              elif [[ "$file" == *.sql ]]; then
+                # For SQL files, run them using psql
+                psql -h localhost -U jondb_admin -d jon_database_dev -f "$file"
+              fi
+            fi
+          done
+          echo "Initialization complete."
+        # Note: The `docker exec` part might not work as the container name is different.
+        # A more robust way is to only handle .sql files with psql. Let's adjust that.
+        # Let's simplify and assume .sql files, which is most common.
+
+      # REVISED Step 3 (Simpler and More Robust)
+      - name: Run database initialization scripts
+        env:
+          PGPASSWORD: JonathanBangerDatabase26!
+        run: |
+          echo "Running initialization scripts..."
+          # Loop through all .sql files in the init directory and execute them
+          for file in ./database/init/*.sql; do
+            if [ -f "$file" ]; then
+              echo "Executing $file..."
+              psql -h localhost -U jondb_admin -d jon_database_dev -f "$file"
+            fi
+          done
+          echo "Initialization complete."
+
+      # Step 4: (Example for Node.js) Install dependencies
+      # Replace this with your project's dependency manager
+      - name: Install Node.js dependencies
+        run: npm ci
+
+      # Step 5: Run your application tests
+      # The environment variables here MUST match the service container's configuration.
+      - name: Run tests
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: jondb_admin
+          DB_PASSWORD: JonathanBangerDatabase26!
+          DB_NAME: jon_database_dev
+        run: npm test
