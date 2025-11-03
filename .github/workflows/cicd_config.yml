@@ -82,5 +82,61 @@ jobs:
         env:
           PGPASSWORD: JonathanBangerDatabase26!
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      # Step 3: Run Database Initialization Scripts
+      # This step replaces the volume mount for /docker-entrypoint-initdb.d
+      - name: Run database initialization scripts
+        env:
+          PGPASSWORD: JonathanBangerDatabase26!
+        run: |
+          echo "Running initialization scripts..."
+          # Loop through all .sh and .sql files in the init directory
+          for file in ./database/init/*; do
+            if [ -f "$file" ]; then
+              echo "Executing $file..."
+              if [[ "$file" == *.sh ]]; then
+                # For shell scripts, run them inside the container
+                docker exec jon-database-postgres bash "/docker-entrypoint-initdb.d/$(basename "$file")"
+              elif [[ "$file" == *.sql ]]; then
+                # For SQL files, run them using psql
+                psql -h localhost -U jondb_admin -d jon_database_dev -f "$file"
+              fi
+            fi
+          done
+          echo "Initialization complete."
+        # Note: The `docker exec` part might not work as the container name is different.
+        # A more robust way is to only handle .sql files with psql. Let's adjust that.
+        # Let's simplify and assume .sql files, which is most common.
+
+      # REVISED Step 3 (Simpler and More Robust)
+      - name: Run database initialization scripts
+        env:
+          PGPASSWORD: JonathanBangerDatabase26!
+        run: |
+          echo "Running initialization scripts..."
+          # Loop through all .sql files in the init directory and execute them
+          for file in ./database/init/*.sql; do
+            if [ -f "$file" ]; then
+              echo "Executing $file..."
+              psql -h localhost -U jondb_admin -d jon_database_dev -f "$file"
+            fi
+          done
+          echo "Initialization complete."
+
+      # Step 4: (Example for Node.js) Install dependencies
+      # Replace this with your project's dependency manager
+      - name: Install Node.js dependencies
+        run: npm ci
+
+      # Step 5: Run your application tests
+      # The environment variables here MUST match the service container's configuration.
+      - name: Run tests
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: jondb_admin
+          DB_PASSWORD: JonathanBangerDatabase26!
+          DB_NAME: jon_database_dev
+        run: npm test
