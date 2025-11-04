@@ -1,6 +1,6 @@
 -- PAKAR Tech Healthcare - Patient Sample Data
 -- COS 20031 Database Design Project
--- Author: [Cherylynn]
+-- Author: [Cherylynn Cassidy]
 
 -- ============================================================================
 -- PATIENT SAMPLE DATA
