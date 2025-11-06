@@ -93,7 +93,8 @@ jobs:
           psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/tests/schema_tests.sql
           
           echo "Running database data integrity tests..."
-          psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/tests/data_integrity_tests.sql
+          #Although the ON_ERROR_STOP is redundant due to the SQL file settings, it's kept here for clarity.
+          psql -v ON_ERROR_STOP=1 -h localhost -U jondb_admin -d jon_database_dev -f ./database/tests/data_integrity_tests.sql
           
           echo "All database tests passed."
   build:
