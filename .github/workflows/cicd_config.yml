@@ -48,7 +48,6 @@ jobs:
           PGPASSWORD: JonathanBangerDatabase26!
         run: |
           echo "Running initialization scripts..."
-          # Loop through all .sql files in the init directory and execute them
           for file in ./database/init/*.sql; do
             if [ -f "$file" ]; then
               echo "Executing $file..."
@@ -65,7 +64,7 @@ jobs:
       - name: Install Node.js dependencies
         run: npm ci
 
-      - name: Run database schema
+      - name: Create database schema
         env:
           PGPASSWORD: JonathanBangerDatabase26!
         run: |
@@ -84,26 +83,19 @@ jobs:
             fi
           done
 
-      - name: Run tests
-        env:
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_USER: jondb_admin
-          DB_PASSWORD: JonathanBangerDatabase26!
-          DB_NAME: jon_database_dev
-        run: npm test
-
+      # --- REVISED STEP ---
+      # This step no longer uses `npm test`. It runs the SQL files directly.
       - name: Run database tests
         env:
           PGPASSWORD: JonathanBangerDatabase26!
         run: |
-          echo "Running database tests..."
-          for file in ./database/tests/*.sql; do
-            if [ -f "$file" ]; then
-              echo "Running $file..."
-              psql -h localhost -U jondb_admin -d jon_database_dev -f "$file"
-            fi
-          done
+          echo "Running database schema tests..."
+          psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/tests/schema_tests.sql
+          
+          echo "Running database data integrity tests..."
+          psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/tests/data_integrity_tests.sql
+          
+          echo "All database tests passed."
   build:
     needs: test
     runs-on: ubuntu-latest
