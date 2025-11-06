@@ -1,5 +1,5 @@
 --Stop execution on error
-SET ON_ERROR_StOP = on;
+SET ON_ERROR_STOP = on;
 -- Simple data integrity test to check if seed data was loaded
 -- Replace with your actual table names and expected counts
 DO $$     DECLARE
