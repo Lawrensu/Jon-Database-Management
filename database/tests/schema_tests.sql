@@ -1,5 +1,5 @@
 --Stop execution on error
-\set ON_ERROR_STOP on;
+\set ON_ERROR_STOP on
 -- Simple schema test to check if key tables exist
 -- Replace 'patients', 'doctors', 'appointments' with your actual table names
 DO $$     BEGIN
