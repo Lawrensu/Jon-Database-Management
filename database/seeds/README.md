@@ -47,6 +47,8 @@ npm run db:connect
 
 **File:** `01_patients_seed.sql`
 
+**Status:** Implemented — generates up to 200 realistic patient records (see file).
+
 **What to include:**
 
 1. **Diverse Demographics**
@@ -520,8 +522,8 @@ Before submitting your seed files (make sure of these for good):
 ## 🚀 Commands for Your Work
 
 ```bash
-# Start database
-npm run db:start
+# Test patients seed
+npm run seeds:patients
 
 # Connect to database
 npm run db:connect
