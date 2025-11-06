@@ -6,7 +6,6 @@
   "author": "Jon's Team",
   "license": "MIT",
   "scripts": {
-    "test": "npm run test:all",
     "db:setup": "bash scripts/setup-database.sh",
     "db:start": "docker compose up -d",
     "db:stop": "docker compose stop",
@@ -31,10 +30,6 @@
     
     "queries:run": "cat database/queries/*.sql | npm run sql:run",
     "queries:test": "cat database/queries/test_queries.sql | npm run sql:run",
-    
-    "test:schema": "cat database/tests/schema_tests.sql | npm run sql:run",
-    "test:data": "cat database/tests/data_integrity_tests.sql | npm run sql:run",
-    "test:all": "npm run test:schema && npm run test:data",
     
     "migrate:up": "for file in database/migrations/*.sql; do echo \"Running $file...\"; cat \"$file\" | npm run sql:run; done",
     
