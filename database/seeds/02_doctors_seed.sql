@@ -9,7 +9,7 @@
 -- Data includes: 20+ doctors with specializations, schedules, and departments
 -- ============================================================================
 
-
+-- Set search path to use 'app' schema
 SET search_path TO app, public;
 
 -- 1) Departments
