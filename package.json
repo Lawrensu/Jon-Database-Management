@@ -6,6 +6,7 @@
   "author": "Jon's Team",
   "license": "MIT",
   "scripts": {
+    "test": "npm run test:all",
     "db:setup": "bash scripts/setup-database.sh",
     "db:start": "docker compose up -d",
     "db:stop": "docker compose stop",
