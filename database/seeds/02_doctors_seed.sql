@@ -1,6 +1,6 @@
 -- PAKAR Tech Healthcare - Doctor & Staff Sample Data
 -- COS 20031 Database Design Project
--- Author: [Cherrylyn something i forgot to spell ur name]
+-- Author: [Cherylynn]
 
 -- ============================================================================
 -- DOCTOR & STAFF SAMPLE DATA
