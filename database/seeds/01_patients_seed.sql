@@ -92,51 +92,37 @@ gen AS (
   CROSS JOIN params
 )
 -- Replace the placeholder blood_type with weighted assignment in the outer INSERT SELECT below
-INSERT INTO app.patients (
-  patient_number, first_name, middle_name, last_name,
-  date_of_birth, gender,
-  email, phone_primary, phone_secondary,
-  address_line1, address_line2, city, state, postal_code,
-  blood_type, height_cm, weight_kg,
-  emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
-  is_active, registration_date
+-- Map generated fields to the core schema `app.patient` (singular).
+-- The core table expects: patient_id, first_name, last_name, email, phone_num, address,
+-- birth_date, gender, emergency_contact, emergency_phone, insurance_num, created_at
+-- We intentionally drop unsupported fields (blood_type, height_cm, etc.) here to keep seeds
+-- compatible with the authoritative schema in `database/project/01_core_schema.sql`.
+INSERT INTO app.patient (
+  patient_id, first_name, last_name,
+  birth_date, gender,
+  email, phone_num,
+  address, emergency_contact, emergency_phone,
+  insurance_num, created_at
 )
 SELECT
-  -- patient_number e.g. PT20250001
-  'PT' || to_char(CURRENT_DATE,'YYYY') || LPAD(g::text,4,'0') AS patient_number,
+  -- patient_id e.g. PT20250001
+  'PT' || to_char(CURRENT_DATE,'YYYY') || LPAD(g::text,4,'0') AS patient_id,
   first_name,
-  NULLIF(TRIM(middle_name), '')::text AS middle_name,
   last_name,
   -- dob from age_years with an added random day offset within the year
-  (CURRENT_DATE - ((age_years * 365) + floor(random() * 365)::int) * INTERVAL '1 day')::date AS date_of_birth,
+  (CURRENT_DATE - ((age_years * 365) + floor(random() * 365)::int) * INTERVAL '1 day')::date AS birth_date,
   -- gender rotate with reasonable distribution
   (CASE WHEN (g % 3) = 1 THEN 'Male' WHEN (g % 3) = 2 THEN 'Female' ELSE 'Other' END) AS gender,
   lower(first_name || '.' || last_name || g || '@pakartech.test') AS email,
-  phone_primary,
-  phone_secondary,
-  address_line1,
-  address_line2,
-  city,
-  state,
-  postal_code,
-  -- weighted blood type using the r_blood value to match README distribution
-  (CASE
-     WHEN r_blood < 0.39 THEN 'O+'
-     WHEN r_blood < 0.66 THEN 'A+'
-     WHEN r_blood < 0.91 THEN 'B+'
-     WHEN r_blood < 0.98 THEN 'AB+'
-     ELSE (CASE WHEN random() < 0.5 THEN 'A-' ELSE (CASE WHEN random() < 0.5 THEN 'B-' ELSE (CASE WHEN random() < 0.5 THEN 'O-' ELSE 'AB-' END) END) END)
-   END) AS blood_type,
-  height_cm,
-  weight_kg,
-  emergency_contact_name,
-  emergency_contact_phone,
-  emergency_contact_relationship,
-  -- most records active, small chance inactive
-  (random() < 0.96) AS is_active,
-  registration_date
+  phone_primary AS phone_num,
+  -- combine address parts into a single address column used by core schema
+  (address_line1 || COALESCE(' ' || address_line2, '') || ', ' || city || ', ' || state || ' ' || postal_code) AS address,
+  emergency_contact_name AS emergency_contact,
+  emergency_contact_phone AS emergency_phone,
+  NULL::varchar AS insurance_num,
+  registration_date::timestamp AT TIME ZONE 'UTC' AS created_at
 FROM gen
-ON CONFLICT (patient_number) DO NOTHING;
+ON CONFLICT (patient_id) DO NOTHING;
 
 -- quick verification message (select row count from inserted set is environment-specific)
 SELECT '01_patients_seed: completed (up to 200 records inserted, duplicates skipped).' AS info;
