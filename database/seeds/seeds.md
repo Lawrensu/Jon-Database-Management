@@ -136,6 +136,10 @@ ON CONFLICT (patient_number) DO NOTHING;
 - [ ] Mix of all blood types
 - [ ] Various cities (KL, PJ, Subang, Shah Alam)
 
+Note about current seed implementation
+- **Current behavior:** The `01_patients_seed.sql` file has been aligned to the authoritative core schema (`app.patient` singular). It now creates minimal `app.user_account` rows per generated patient (so emails/usernames are preserved) and inserts records into `app.patient` with `user_id` linked to `app.user_account.id`.
+- **Fields omitted:** Clinical/demo fields that appear in examples (blood_type, height_cm, weight_kg, insurance_num, separate address parts) are intentionally omitted from `app.patient` by default to avoid changing the core schema.
+
 ### Phase 3: Creating Doctor Data 
 
 **File:** `02_doctors_seed.sql`
@@ -217,6 +221,10 @@ INSERT INTO app.doctors (
 )
 ON CONFLICT (doctor_number) DO NOTHING;
 ```
+
+Note about current doctor seed implementation
+- **Current behavior:** `02_doctors_seed.sql` was updated to map to the core schema `app.doctor` (singular). It inserts minimal `app.user_account` rows for doctors to preserve email/username, then inserts into `app.doctor` using required columns (including `license_exp`).
+- **Fields omitted / changed:** The seed no longer inserts into non-existent helper tables such as `app.departments`, `app.specializations`, or `app.doctor_schedules`. Specialization is stored as a string in `app.doctor.specialization` per the core schema.
 
 **Doctor schedules (working hours) (MAYBE):**
 
