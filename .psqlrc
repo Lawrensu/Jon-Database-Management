@@ -1,127 +1,58 @@
--- filepath: d:\University\Degree\Year 2\Sem 1\Database Design Project (COS 20031)\Jon-Database-Management\.psqlrc
-
 -- ============================================================================
--- PostgreSQL Client Configuration (.psqlrc)
--- ============================================================================
--- This file configures the psql client for the PAKAR Tech Healthcare project
--- Automatically loaded when connecting via: npm run db:connect
+-- PostgreSQL psql Configuration
+-- Runs automatically when connecting via psql
 -- ============================================================================
 
--- Turn off autocommit for better transaction control
+-- Turn OFF autocommit (safer for development)
 \set AUTOCOMMIT off
 
--- ============================================================================
--- PROMPT CONFIGURATION
--- ============================================================================
+\echo '🔒 AUTOCOMMIT is OFF - Use BEGIN/COMMIT/ROLLBACK explicitly'
 
--- Prompt 1: Main prompt showing user@database with transaction status
--- %n = username, %/ = database name, %x = transaction status
--- Colors: Green for normal, Yellow for transaction, Red for error
-\set PROMPT1 '%[%033[1;32m%]%n@%/%[%033[0m%]%x%# '
-
--- Prompt 2: Continuation prompt (for multi-line queries)
-\set PROMPT2 '%[%033[1;33m%]...%[%033[0m%] '
-
--- Transaction status indicators:
--- (empty) = not in transaction
--- * = in transaction
--- ! = in failed transaction (needs ROLLBACK)
-
--- ============================================================================
--- DISPLAY SETTINGS
--- ============================================================================
-
--- Enable query execution timing
-\timing on
-
--- Automatically switch between normal and expanded display based on width
+-- Better display settings
 \x auto
-
--- Show NULL values as '(null)' instead of empty
 \pset null '(null)'
-
--- Use Unicode line drawing for table borders (looks nicer)
+\pset border 2
 \pset linestyle unicode
 
--- Border style: 2 = full borders around table
-\pset border 2
+-- Timing queries (see how long queries take)
+\timing on
 
--- Format numbers with thousands separators
-\pset numericlocale on
+-- Better error messages
+\set VERBOSITY verbose
 
--- Show table column descriptions when using \d
-\pset expanded auto
-
--- ============================================================================
--- HISTORY SETTINGS
--- ============================================================================
-
--- Save command history
-\set HISTFILE ~/.psql_history
-
--- Don't save duplicate commands
+-- History settings
+\set HISTSIZE 5000
 \set HISTCONTROL ignoredups
 
--- Save last 10000 commands
-\set HISTSIZE 10000
+-- Show current database and user in prompt
+\set PROMPT1 '%n@%/%R%# '
+\set PROMPT2 '%n@%/%R%# '
+
+-- Helpful shortcuts
+\set show_tables '\\dt app.*'
+\set show_indexes '\\di app.*'
+
+-- Custom queries (only if tables exist)
+\set patient_count 'SELECT COUNT(*) FROM app.patient;'
+\set active_prescriptions 'SELECT COUNT(*) FROM app.prescription WHERE status = ''Active'';'
 
 -- ============================================================================
--- CONVENIENCE SHORTCUTS
+-- Welcome Message
 -- ============================================================================
-
--- Quick commit/rollback shortcuts
-\set c 'COMMIT;'
-\set r 'ROLLBACK;'
-
--- Show current transaction status
-\set txn 'SELECT CASE WHEN pg_is_in_recovery() THEN \'RECOVERY\' WHEN txid_current_if_assigned() IS NULL THEN \'NO TRANSACTION\' ELSE \'IN TRANSACTION (XID: \' || txid_current() || \')\' END AS transaction_status;'
-
--- Show table sizes
-\set sizes 'SELECT schemaname, tablename, pg_size_pretty(pg_total_relation_size(schemaname||\'.\'||tablename)) AS size FROM pg_tables WHERE schemaname = \'app\' ORDER BY pg_total_relation_size(schemaname||\'.\'||tablename) DESC;'
-
--- Show active connections
-\set conns 'SELECT pid, usename, application_name, client_addr, state, query_start, LEFT(query, 50) AS query FROM pg_stat_activity WHERE datname = current_database() ORDER BY query_start DESC;'
-
--- Show all tables in app schema
-\set tables 'SELECT tablename FROM pg_tables WHERE schemaname = \'app\' ORDER BY tablename;'
-
--- ============================================================================
--- STARTUP MESSAGE
--- ============================================================================
-
 \echo ''
-\echo '╔════════════════════════════════════════════════════════════╗'
-\echo '║      PAKAR Tech Healthcare Database (PostgreSQL 18)       ║'
-\echo '╚════════════════════════════════════════════════════════════╝'
+\echo '=========================================='
+\echo '🏥 PAKAR Tech Healthcare Database'
+\echo '=========================================='
+\echo 'Database: jon_database_dev'
+\echo 'Schema: app'
 \echo ''
-\echo 'Configuration:'
-\echo '  ✓ Autocommit: OFF (manual transaction control)'
-\echo '  ✓ Query timing: ON'
-\echo '  ✓ Transaction status in prompt'
+\echo '📌 Useful Commands:'
+\echo '  \\dt app.*           - List all tables'
+\echo '  \\d app.patient      - Describe patient table'
+\echo '  \\x                  - Toggle expanded display'
+\echo '  \\timing             - Toggle query timing'
+\echo '  \\q                  - Quit'
 \echo ''
-\echo 'Transaction Commands:'
-\echo '  BEGIN;              - Start transaction'
-\echo '  COMMIT; or :c       - Save changes'
-\echo '  ROLLBACK; or :r     - Undo changes'
-\echo '  SAVEPOINT name;     - Create checkpoint'
-\echo '  ROLLBACK TO name;   - Rollback to checkpoint'
+\echo '⚠️  AUTOCOMMIT is OFF - Use BEGIN/COMMIT/ROLLBACK!'
+\echo '=========================================='
 \echo ''
-\echo 'Quick Shortcuts:'
-\echo '  :txn    - Show transaction status'
-\echo '  :sizes  - Show table sizes'
-\echo '  :conns  - Show active connections'
-\echo '  :tables - List all tables'
-\echo ''
-\echo 'Schema Information:'
-\echo '  \dt app.*           - List all tables'
-\echo '  \d app.patient      - Describe patient table'
-\echo '  \df app.*           - List all functions'
-\echo '  \dv app.*           - List all views'
-\echo ''
-\echo 'Remember: Always COMMIT or ROLLBACK your changes!'
-\echo ''
-
--- Set default schema search path
-\set QUIET on
-SET search_path TO app, public;
-\set QUIET off

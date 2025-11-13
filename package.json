@@ -19,8 +19,8 @@
     
     "sql:run": "docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
     
-    "schema:create": "cat database/project/01_core_schema.sql | npm run sql:run",
-    "schema:drop": "docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -c 'DROP SCHEMA IF EXISTS app CASCADE; CREATE SCHEMA app;'",
+    "schema:create": "docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev < database/project/01_core_schema.sql",
+    "schema:drop": "docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -c \"DROP SCHEMA IF EXISTS app CASCADE; CREATE SCHEMA app;\"",
     "schema:rebuild": "npm run schema:drop && npm run schema:create",
     
     "seeds:run": "for file in database/seeds/*.sql; do echo \"Loading $file...\"; cat \"$file\" | npm run sql:run; done",
