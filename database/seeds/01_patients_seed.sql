@@ -97,29 +97,26 @@ gen AS (
 -- birth_date, gender, emergency_contact, emergency_phone, insurance_num, created_at
 -- We intentionally drop unsupported fields (blood_type, height_cm, etc.) here to keep seeds
 -- compatible with the authoritative schema in `database/project/01_core_schema.sql`.
+-- Insert into the authoritative `app.patient` table (schema v2.0)
+-- Columns present: patient_id, user_id, phone_num, birth_date, gender, address,
+-- emergency_contact_name, emergency_contact_phone, created_at, updated_at
 INSERT INTO app.patient (
-  patient_id, first_name, last_name,
-  birth_date, gender,
-  email, phone_num,
-  address, emergency_contact, emergency_phone,
-  insurance_num, created_at
+  patient_id, phone_num, birth_date, gender, address,
+  emergency_contact_name, emergency_contact_phone, created_at
 )
 SELECT
   -- patient_id e.g. PT20250001
   'PT' || to_char(CURRENT_DATE,'YYYY') || LPAD(g::text,4,'0') AS patient_id,
-  first_name,
-  last_name,
+  -- use the generated primary phone as phone_num
+  phone_primary AS phone_num,
   -- dob from age_years with an added random day offset within the year
   (CURRENT_DATE - ((age_years * 365) + floor(random() * 365)::int) * INTERVAL '1 day')::date AS birth_date,
   -- gender rotate with reasonable distribution
   (CASE WHEN (g % 3) = 1 THEN 'Male' WHEN (g % 3) = 2 THEN 'Female' ELSE 'Other' END) AS gender,
-  lower(first_name || '.' || last_name || g || '@pakartech.test') AS email,
-  phone_primary AS phone_num,
   -- combine address parts into a single address column used by core schema
   (address_line1 || COALESCE(' ' || address_line2, '') || ', ' || city || ', ' || state || ' ' || postal_code) AS address,
-  emergency_contact_name AS emergency_contact,
-  emergency_contact_phone AS emergency_phone,
-  NULL::varchar AS insurance_num,
+  emergency_contact_name,
+  emergency_contact_phone,
   registration_date::timestamp AT TIME ZONE 'UTC' AS created_at
 FROM gen
 ON CONFLICT (patient_id) DO NOTHING;
