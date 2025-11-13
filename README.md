@@ -4,7 +4,7 @@
 
 Modern PostgreSQL 18 database setup for PAKAR Tech Healthcare.
 
-## 📋 Prerequisites & Installation
+## Prerequisites & Installation
 
 ### 1. Required Software
 
@@ -68,13 +68,6 @@ npm run db:status
 3. **Access pgAdmin:**
    Open http://localhost:8080
 
-## Why
-
-- **PostgreSQL 18**: Latest database with advanced features
-- **pgAdmin**: Web-based database management
-- **Automatic setup**: One command gets everything running
-- **Team ready**: Easy for classmates to set up
-
 ## Available Commands
 
 ```bash
@@ -94,12 +87,57 @@ npm run pgadmin      # Show pgAdmin URL
 - **Username:** jondb_admin
 - **Password:** JonathanBangerDatabase26!
 
-## To-Do
+## Project Structure 
+```
+Jon-Database-Management/
+├── database/
+│   ├── project/
+│   │   ├── 01_core_schema.sql       ← Main schema file
+│   │   └── databaseSchema.md        ← Complete documentation
+│   ├── seeds/
+│   │   ├── 01_patients_seed.sql     ← Sample patients
+│   │   ├── 02_doctors_seed.sql      ← Sample doctors
+│   │   └── seeds.md                 ← Data documentation
+│   ├── queries/
+│   │   ├── test_queries.sql         ← Test queries
+│   │   └── testQuery.md             ← Query guide
+│   ├── init/
+│   │   └── 01_setup.sql             ← Database initialization
+│   ├── backups/                     ← Backup location
+│   └── migrations/                  ← Schema migrations
+├── docs/
+│   ├── README.md                    ← DevOps guide
+│   └── guides/
+│       └── git-workflow.md          ← Git branching strategy
+├── scripts/
+│   └── setup-database.sh            ← Automated setup script
+├── docker-compose.yml               ← Docker configuration
+├── package.json                     ← NPM commands
+├── .env                             ← Environment variables
+└── README.md                        ← This file
+```
+---
 
-- Create tables in the `app` schema
-- Use pgAdmin for visual design
-- Document database structure
+## Development Workflow
+```
+1. Create feature branch
+- git checkout -b your-name/feature-name
 
-<!-- ## Port Configuration
+2. Make changes
 
-Using port 5433 to avoid conflicts with local PostgreSQL installations on port 5432. -->
+3. Test locally
+- npm run schema:rebuild
+- npm run seeds:run
+- npm run queries:test
+
+4. Commit and push
+- git add .
+- git commit -m "Description of changes"
+- git push origin your-name/feature-name
+
+5. Merging main to your branch
+- git checkout main
+- git pull origin main
+- git checkout your-branch
+- git merge main
+```
