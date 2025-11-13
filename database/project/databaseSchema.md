@@ -1,269 +1,357 @@
-# Database Schema Design Guide
+# PAKAR Tech Healthcare Database - Schema Documentation
 
-**Team Members:** Lawrence, Jonathan  
-**Role:** Database Designers  
-**Responsibility:** Database structure, ER diagrams, normalization, schema design
-
----
-
-## 🎯 What we need to do?
-
-WE are responsible for designing the **complete database structure** for PAKAR Tech Healthcare. This includes:
-
-1. **Schema Design** - Creating all tables, relationships, and constraints
-2. **ER Diagrams** - Visual representation of the database
-3. **Normalization** - Ensuring data integrity and efficiency
-4. **Documentation** - Explaining design decisions
+**Project:** Database Design Project (COS 20031)  
+**Team:** Lawrence, Jonathan, Cherrylyn, Jason, Faisal  
+**Database:** PostgreSQL 18  
+**Last Updated:** January 2025
 
 ---
 
-## 📋 What You Need to Do
+## Executive Summary
 
-### Phase 1: Understanding the Schema 
+Medication management system with patient records, prescriptions, adherence tracking, and role-based access control.
 
-**File to work on:** `01_core_schema.sql`
-
-1. **Review Current Structure**
-   ```bash
-   # View the schema file
-   code database/project/01_core_schema.sql
-   ```
-
-2. **Understand the Healthcare Domain**
-   - **Patients:** The customer basically (End User)
-   - **Doctors:** Medical professionals
-   - **Appointments:** Scheduling system
-   - **Medical Records:** Patient history and diagnoses
-   - **Medications:** Medications for the patients
-   - **Symptoms:**  Symptoms that the patients have
-   - **Side-Effects:**  Side-Effects that patients got after consuming the medications
-
-3. **Study the Design Principles**
-   - Every table uses `UUID` as primary key (globally unique)
-   - Every table has `created_at` and `updated_at` timestamps
-   - Use `CITEXT` for case-insensitive text (emails)
-   - Foreign keys with proper `ON DELETE` actions
-   - Indexes on frequently queried columns
-
-### Phase 2: Extending the Schema
-
-**Add more tables as needed:**
-
-```sql
--- Example: Adding a Billing table
-CREATE TABLE IF NOT EXISTS app.billing (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    
-    -- Relationships
-    appointment_id UUID NOT NULL REFERENCES app.appointments(id) ON DELETE RESTRICT,
-    patient_id UUID NOT NULL REFERENCES app.patients(id) ON DELETE RESTRICT,
-    
-    -- Billing details
-    invoice_number VARCHAR(50) NOT NULL UNIQUE,
-    total_amount DECIMAL(10,2) NOT NULL,
-    paid_amount DECIMAL(10,2) DEFAULT 0.00,
-    payment_method VARCHAR(50) CHECK (payment_method IN ('Cash', 'Card', 'Insurance', 'Bank Transfer')),
-    
-    -- Status
-    payment_status VARCHAR(20) CHECK (payment_status IN ('Pending', 'Paid', 'Partial', 'Cancelled')),
-    
-    -- Audit fields
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
-    -- Constraints
-    CONSTRAINT ck_billing_amounts CHECK (paid_amount <= total_amount)
-);
-
--- Always add indexes for foreign keys
-CREATE INDEX IF NOT EXISTS idx_billing_appointment ON app.billing(appointment_id);
-CREATE INDEX IF NOT EXISTS idx_billing_patient ON app.billing(patient_id);
-CREATE INDEX IF NOT EXISTS idx_billing_status ON app.billing(payment_status);
-```
-
-### Phase 3: Creating ER Diagrams (Already but just putting it here as a note)
-
-**Tools you can use:**
-- **pgAdmin** - Built-in ER diagram tool
-- **draw.io** - Free online tool (https://app.diagrams.net/)
-- **Lucidchart** - Professional diagramming
-- **dbdiagram.io** - Database-specific tool
-
-**What to include in your ER diagram:**
-1. All entities (tables)
-2. Attributes (columns) with data types
-3. Primary keys (underlined)
-4. Foreign keys (arrows showing relationships)
-5. Cardinality (1:1, 1:N, M:N)
-6. Business rules and constraints
-
-**Example ER diagram notation:**
-```
-┌─────────────────────┐         ┌─────────────────────┐
-│     PATIENTS        │         │     APPOINTMENTS    │
-├─────────────────────┤         ├─────────────────────┤
-│ PK id (UUID)        │────┐    │ PK id (UUID)        │
-│    patient_number   │    │    │    appointment_num  │
-│    first_name       │    │    │ FK patient_id       │
-│    last_name        │    └───>│ FK doctor_id        │
-│    date_of_birth    │         │    appointment_date │
-│    email            │         │    status           │
-└─────────────────────┘         └─────────────────────┘
-```
-
-**Save your diagrams to:** `docs/design/er-diagram.png` or `.pdf`
-
-### Phase 4: Testing Your Schema 
-
-**Test your schema design:**
-
-```bash
-# 1. Drop and recreate schema
-npm run schema:drop
-
-# 2. Create your new schema
-npm run schema:create
-
-# 3. Check for errors
-npm run db:logs
-
-# 4. Load sample data to test
-npm run seeds:run
-
-# 5. Verify relationships work
-npm run queries:test
-```
-
-**Common issues to check:**
-- ✅ All foreign keys reference existing tables
-- ✅ Data types are appropriate (VARCHAR length, DECIMAL precision)
-- ✅ Check constraints are logical
-- ✅ Indexes are created for performance
-- ✅ No circular dependencies
+**Key Metrics:**
+- **16 Tables** in `app` schema
+- **15 Foreign Key Relationships**
+- **51 Indexes** for performance
+- **11 Check Constraints** for data validation
+- **UUID Primary Keys** for distributed system support
 
 ---
 
-## 🛠️ Schema Design Checklist
+## Database Structure
 
-Use this checklist for EVERY table we create (good practise):
+### User Management (3 tables)
+1. **admin** - System administrators
+2. **super_admin** - Elevated privilege accounts
+3. **user_account** - Regular users (Patient/Doctor)
 
-```
-Table: _______________
+### Core Entities (3 tables)
+4. **patient** - Patient demographics and contacts
+5. **doctor** - Doctor credentials and licenses
+6. **reminder** - Medication reminders
 
-[ ] Has UUID primary key with uuid_generate_v4()
-[ ] Has created_at timestamp with DEFAULT NOW()
-[ ] Has updated_at timestamp with DEFAULT NOW()
-[ ] All foreign keys have proper ON DELETE actions
-[ ] All foreign keys have indexes
-[ ] Email fields use CITEXT type
-[ ] Numeric fields have CHECK constraints (e.g., price >= 0)
-[ ] Enum-like fields use CHECK constraints
-[ ] Has meaningful comments using COMMENT ON
-[ ] Tested with sample data
-[ ] Documented in ER diagram
-```
+### Medical Data (3 tables)
+7. **condition** - Medical conditions (Hypertension, Diabetes, etc.)
+8. **symptom** - Symptoms linked to conditions
+9. **patient_symptom** - Junction: Patients ↔ Symptoms
 
----
+### Medications (3 tables)
+10. **medication** - Medication master data
+11. **side_effect** - Side effects catalog
+12. **medication_side_effect** - Junction: Medications ↔ Side Effects
 
-## 📊 Database Normalization Guide (Putting this note here)
+### Prescriptions (2 tables)
+13. **prescription** - Prescription master record
+14. **prescription_version** - Version history (dosage changes)
 
-**What is normalization?**  
-Organizing data to reduce redundancy and improve integrity.
-
-### 1st Normal Form (1NF)
-- ✅ Each column contains atomic (single) values
-- ✅ Each row is unique (has primary key)
-- ❌ No repeating groups or arrays
-
-**Bad Example:**
-```sql
--- DON'T DO THIS
-CREATE TABLE patients (
-    id UUID PRIMARY KEY,
-    name VARCHAR(200),
-    phone_numbers VARCHAR(500)  -- "123-456, 789-012, 345-678" ❌
-);
-```
-
-**Good Example:**
-```sql
--- DO THIS
-CREATE TABLE patients (
-    id UUID PRIMARY KEY,
-    name VARCHAR(200)
-);
-
-CREATE TABLE patient_phones (
-    id UUID PRIMARY KEY,
-    patient_id UUID REFERENCES patients(id),
-    phone_number VARCHAR(20),
-    phone_type VARCHAR(20)  -- 'Primary', 'Secondary', 'Emergency'
-);
-```
-
-### 2nd Normal Form (2NF)
-- ✅ Must be in 1NF
-- ✅ All non-key columns depend on the ENTIRE primary key
-
-### 3rd Normal Form (3NF)
-- ✅ Must be in 2NF
-- ✅ No transitive dependencies (non-key columns depend only on primary key)
-
-**Bad Example:**
-```sql
--- DON'T DO THIS
-CREATE TABLE appointments (
-    id UUID PRIMARY KEY,
-    patient_id UUID,
-    patient_name VARCHAR(200),      -- ❌ Depends on patient_id, not appointment id
-    patient_phone VARCHAR(20),      -- ❌ Depends on patient_id
-    doctor_id UUID,
-    doctor_name VARCHAR(200),       -- ❌ Depends on doctor_id
-    appointment_date DATE
-);
-```
-
-**Good Example:**
-```sql
--- DO THIS - Keep patient/doctor data in their own tables
-CREATE TABLE appointments (
-    id UUID PRIMARY KEY,
-    patient_id UUID REFERENCES patients(id),  -- ✅ Just the reference
-    doctor_id UUID REFERENCES doctors(id),    -- ✅ Just the reference
-    appointment_date DATE,
-    appointment_time TIME
-);
-```
+### Tracking (2 tables)
+15. **medication_schedule** - When/how to take medication
+16. **medication_log** - Adherence tracking (Taken/Missed/Skipped)
 
 ---
 
-## 🔧 Common SQL Patterns
+## Key Relationships
+user_account (1) ──→ (1) patient
+user_account (1) ──→ (1) doctor
 
-### Pattern 1: Lookup Tables (Reference Data)
+patient (1) ──→ (N) prescription
+doctor (1) ──→ (N) prescription
+
+prescription (1) ──→ (N) prescription_version
+prescription_version (1) ──→ (N) medication_schedule
+
+patient (N) ←──→ (N) symptom (via patient_symptom)
+medication (N) ←──→ (N) side_effect (via medication_side_effect)
+
+
+---
+
+## Table Details
+
+### 1. admin
+| Column | Type | Key |
+|--------|------|-----|
+| id | UUID | PK |
+| admin_id | VARCHAR(50) | UNIQUE |
+| username | VARCHAR(50) | UNIQUE |
+| password_hash | VARCHAR(255) | - |
+| created_at | TIMESTAMP | - |
+
+**Purpose:** System administrators for management tasks.
+
+---
+
+### 2. super_admin
+| Column | Type | Key |
+|--------|------|-----|
+| id | UUID | PK |
+| super_admin_id | VARCHAR(50) | UNIQUE |
+| username | VARCHAR(50) | UNIQUE |
+| password_hash | VARCHAR(255) | - |
+| created_at | TIMESTAMP | - |
+
+**Purpose:** Elevated privilege accounts with full system access.
+
+---
+
+### 3. user_account
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK |
+| user_id | VARCHAR(50) | UNIQUE |
+| username | VARCHAR(50) | UNIQUE |
+| password_hash | VARCHAR(255) | NOT NULL |
+| user_type | VARCHAR(20) | CHECK: 'Patient' or 'Doctor' |
+| is_active | BOOLEAN | DEFAULT TRUE |
+| created_at | TIMESTAMP | DEFAULT NOW() |
+
+**Purpose:** Regular user accounts for patients and doctors.
+
+---
+
+### 4. patient
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK |
+| patient_id | VARCHAR(50) | UNIQUE |
+| user_id | UUID | FK → user_account |
+| phone_num | VARCHAR(20) | NOT NULL |
+| birth_date | DATE | CHECK: ≤ TODAY |
+| gender | VARCHAR(20) | CHECK: Male/Female/Other |
+| address | VARCHAR(300) | NULL |
+| emergency_contact_name | VARCHAR(100) | NULL |
+| emergency_contact_phone | VARCHAR(20) | NULL |
+| created_at | TIMESTAMP | AUTO |
+| updated_at | TIMESTAMP | AUTO (trigger) |
+
+**Purpose:** Patient demographics and contact information.
+
+---
+
+### 5. doctor
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK |
+| doctor_id | VARCHAR(50) | UNIQUE |
+| user_id | UUID | FK → user_account |
+| phone_num | VARCHAR(20) | NOT NULL |
+| license_num | VARCHAR(100) | UNIQUE, NOT NULL |
+| license_exp | DATE | NOT NULL |
+| gender | VARCHAR(20) | CHECK: Male/Female/Other |
+| specialization | VARCHAR(200) | NULL |
+| qualification | VARCHAR(300) | NULL |
+| created_at | TIMESTAMP | AUTO |
+| updated_at | TIMESTAMP | AUTO (trigger) |
+
+**Purpose:** Doctor credentials and professional information.
+
+---
+
+### 6. reminder
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK |
+| reminder_id | VARCHAR(50) | UNIQUE |
+| patient_id | UUID | FK → user_account |
+| medication_schedule_id | UUID | FK → medication_schedule |
+| message | VARCHAR(500) | NOT NULL |
+| schedule | TIMESTAMP | NOT NULL |
+
+**Purpose:** Medication reminders for patients.
+
+---
+
+### 7. condition
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK |
+| condition_id | VARCHAR(50) | UNIQUE |
+| condition_name | VARCHAR(200) | NOT NULL |
+| condition_desc | TEXT | NULL |
+
+**Purpose:** Medical conditions (Hypertension, Diabetes, Asthma, etc.).
+
+**Sample Data:** COND001-COND005 (5 common conditions)
+
+---
+
+### 8. symptom
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK |
+| symptom_id | VARCHAR(50) | UNIQUE |
+| condition_id | UUID | FK → condition |
+| notes | TEXT | NULL |
+| severity | VARCHAR(20) | CHECK: Mild/Moderate/Severe |
+| date_reported | TIMESTAMP | DEFAULT NOW() |
+
+**Purpose:** Symptoms linked to medical conditions.
+
+---
+
+### 9. patient_symptom
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK |
+| patient_id | UUID | FK → patient |
+| symptom_id | UUID | FK → symptom |
+| date_reported | TIMESTAMP | DEFAULT NOW() |
+
+**Unique:** (patient_id, symptom_id, date_reported)
+
+**Purpose:** Many-to-many junction linking patients to their symptoms.
+
+---
+
+### 10. medication
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK |
+| medication_id | VARCHAR(50) | UNIQUE |
+| med_name | VARCHAR(200) | NOT NULL |
+| med_brand_name | VARCHAR(200) | NULL |
+| manufacturer | VARCHAR(200) | NULL |
+| med_dose | VARCHAR(100) | NULL |
+
+**Purpose:** Medication master data catalog.
+
+---
+
+### 11. side_effect
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK |
+| side_effect_id | VARCHAR(50) | UNIQUE |
+| condition_id | UUID | FK → condition (if mimics condition) |
+
+**Purpose:** Side effects catalog.
+
+---
+
+### 12. medication_side_effect
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK |
+| medication_id | UUID | FK → medication |
+| side_effect_id | UUID | FK → side_effect |
+| frequency | VARCHAR(100) | NULL (Common/Rare) |
+
+**Unique:** (medication_id, side_effect_id)
+
+**Purpose:** Many-to-many junction linking medications to side effects.
+
+---
+
+### 13. prescription
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK |
+| prescription_id | VARCHAR(50) | UNIQUE |
+| patient_id | UUID | FK → patient (RESTRICT) |
+| doctor_id | UUID | FK → doctor (RESTRICT) |
+| created_date | TIMESTAMP | DEFAULT NOW() |
+| status | VARCHAR(50) | CHECK: Active/Completed/Cancelled/Expired |
+| doctor_note | TEXT | NULL |
+
+**Purpose:** Prescription master record.
+
+**ON DELETE RESTRICT:** Cannot delete patient/doctor with active prescriptions.
+
+---
+
+### 14. prescription_version
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK |
+| prescription_version_id | VARCHAR(50) | UNIQUE |
+| prescription_id | UUID | FK → prescription (CASCADE) |
+| medication_id | UUID | FK → medication (RESTRICT) |
+| titration | DECIMAL(10,2) | NULL |
+| titration_unit | VARCHAR(50) | CHECK: mg/ml/tablets/capsules/units |
+| start_date | TIMESTAMP | DEFAULT NOW() |
+| end_date | TIMESTAMP | NULL (NULL = current version) |
+| reason_for_change | TEXT | NULL |
+
+**Purpose:** Immutable audit trail of dosage changes (temporal versioning).
+
+---
+
+### 15. medication_schedule
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK |
+| medication_schedule_id | VARCHAR(50) | UNIQUE |
+| prescription_version_id | UUID | FK → prescription_version (CASCADE) |
+| med_timing | VARCHAR(50) | CHECK: BeforeMeal/AfterMeal |
+| frequency_times_daily | INT | CHECK: 1-6 |
+| frequency_interval_hours | INT | CHECK: 1-24 |
+| duration | INT | NULL |
+| duration_unit | VARCHAR(50) | CHECK: Days/Weeks/Months |
+| updated_at | TIMESTAMP | AUTO (trigger) |
+
+**Purpose:** Defines when and how often to take medication.
+
+---
+
+### 16. medication_log
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK |
+| medication_log_id | VARCHAR(50) | UNIQUE |
+| patient_id | UUID | FK → patient (CASCADE) |
+| medication_id | UUID | FK → medication (RESTRICT) |
+| medication_schedule_id | UUID | FK → medication_schedule (SET NULL) |
+| notes | TEXT | NULL |
+| scheduled_time | TIMESTAMP | NOT NULL |
+| actual_taken_time | TIMESTAMP | NULL |
+| status | VARCHAR(50) | CHECK: Taken/Missed/Skipped, DEFAULT Missed |
+
+**Purpose:** Tracks actual medication intake for adherence monitoring.
+
+---
+
+## Constraints Summary
+
+### Check Constraints (11)
+- `patient.birth_date ≤ CURRENT_DATE`
+- `patient.gender IN ('Male', 'Female', 'Other')`
+- `doctor.gender IN ('Male', 'Female', 'Other')`
+- `user_account.user_type IN ('Patient', 'Doctor')`
+- `symptom.severity IN ('Mild', 'Moderate', 'Severe')`
+- `prescription.status IN ('Active', 'Completed', 'Cancelled', 'Expired')`
+- `prescription_version.titration_unit IN ('mg', 'ml', 'tablets', 'capsules', 'units')`
+- `medication_schedule.med_timing IN ('BeforeMeal', 'AfterMeal')`
+- `medication_schedule.frequency_times_daily BETWEEN 1 AND 6`
+- `medication_schedule.frequency_interval_hours BETWEEN 1 AND 24`
+- `medication_log.status IN ('Taken', 'Missed', 'Skipped')`
+
+### Unique Constraints (19)
+- All `*_id` business identifiers
+- All `username` columns
+- `(patient_id, symptom_id, date_reported)` on patient_symptom
+- `(medication_id, side_effect_id)` on medication_side_effect
+
+---
+
+## Indexes (51 total)
+
+**Primary:** UUID on all tables (16)  
+**Foreign Keys:** All FK columns (15)  
+**Business Keys:** All `*_id` columns (16)  
+**Performance:** user_type, prescription_status, symptom_severity, med_log_status (4)
+
+---
+
+## Triggers (3)
+
+**Auto-update `updated_at` on:**
+- `patient`
+- `doctor`
+- `medication_schedule`
 
 ```sql
--- For fixed categories/statuses
-CREATE TABLE IF NOT EXISTS app.appointment_statuses (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    status_name VARCHAR(50) NOT NULL UNIQUE,
-    description TEXT,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Insert fixed values
-INSERT INTO app.appointment_statuses (status_name, description) VALUES
-('Scheduled', 'Appointment has been scheduled'),
-('Confirmed', 'Patient confirmed the appointment'),
-('Completed', 'Appointment completed successfully'),
-('Cancelled', 'Appointment was cancelled')
-ON CONFLICT (status_name) DO NOTHING;
-```
-
-### Pattern 2: Audit Timestamps with Triggers
-
-```sql
--- Automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -271,186 +359,3 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
--- Apply to a table
-CREATE TRIGGER update_patients_updated_at 
-    BEFORE UPDATE ON app.patients 
-    FOR EACH ROW 
-    EXECUTE FUNCTION update_updated_at_column();
-```
-
-### Pattern 3: Soft Deletes
-
-```sql
--- Instead of deleting records, mark them as inactive
-CREATE TABLE IF NOT EXISTS app.patients (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    -- ... other fields ...
-    is_active BOOLEAN DEFAULT TRUE,
-    deleted_at TIMESTAMP WITH TIME ZONE,
-    deleted_by UUID
-);
-
--- View only active records
-CREATE VIEW app.active_patients AS
-SELECT * FROM app.patients WHERE is_active = TRUE;
-```
-
-### Pattern 4: Many-to-Many Relationships
-
-```sql
--- Doctors can have multiple specializations
-CREATE TABLE IF NOT EXISTS app.doctor_specializations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    doctor_id UUID NOT NULL REFERENCES app.doctors(id) ON DELETE CASCADE,
-    specialization_id UUID NOT NULL REFERENCES app.specializations(id) ON DELETE CASCADE,
-    certified_date DATE,
-    certification_number VARCHAR(100),
-    is_primary BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
-    -- Ensure unique combinations
-    CONSTRAINT uq_doctor_specialization UNIQUE(doctor_id, specialization_id)
-);
-
-CREATE INDEX idx_doctor_spec_doctor ON app.doctor_specializations(doctor_id);
-CREATE INDEX idx_doctor_spec_specialization ON app.doctor_specializations(specialization_id);
-```
-
----
-
-## 🚀 Commands for Your Work
-
-```bash
-# Start working
-npm run db:start
-
-# Connect to database directly
-npm run db:connect
-
-# Create/update schema
-npm run schema:create
-
-# Rebuild from scratch
-npm run schema:rebuild
-
-# Test with data
-npm run seeds:run
-
-# Run test queries
-npm run queries:test
-
-# Check database status
-npm run db:status
-
-# View logs if something fails
-npm run db:logs
-```
-
----
-
-## 📝 Documentation Requirements
-
-Create these documents in `docs/design/`:
-
-### 1. **schema-overview.md**
-```md
-# PAKAR Tech Healthcare - Database Schema Overview
-
-## Entities
-1. Patients
-2. Doctors
-3. Appointments
-4. Medical Records
-5. Departments
-6. Lab Tests
-
-## Relationships
-- One Patient can have many Appointments
-- One Doctor can have many Appointments
-- One Appointment has one Medical Record
-...
-```
-
-### 2. **design-decisions.md**
-```md
-# Database Design Decisions
-
-## Why UUID instead of SERIAL?
-- Globally unique identifiers
-- Better for distributed systems
-- Prevents ID prediction attacks
-
-## Why CITEXT for emails?
-- Case-insensitive comparisons
-- Prevents duplicate emails (john@example.com = JOHN@example.com)
-...
-```
-
-### 3. **table-descriptions.md**
-```md
-# Table Descriptions
-
-## app.patients
-**Purpose:** Stores patient demographic and contact information
-
-**Columns:**
-- `id` - Unique identifier
-- `patient_number` - Human-readable patient ID (e.g., PT2024001)
-- `first_name` - Patient's first name
-...
-
-**Business Rules:**
-- Patient must be at least 0 years old
-- Email must be unique
-- Phone number is required
-...
-```
-
----
-
-## 🤝 Working with our Team
-
-### With Data Manager (Cherrylyn):
-- ✅ Share our schema changes immediately
-- ✅ Ensure sample data matches our constraints
-- ✅ Test together: your schema + her seeds
-
-### With Query Specialist (Jason):
-- ✅ Create views for complex queries
-- ✅ Ensure indexes support common queries
-- ✅ Discuss what reports are needed
-
-### With DevOps (Faisal):
-- ✅ Document all schema changes
-- ✅ Create migration files for changes
-- ✅ Test schema deployment
-
----
-
-## 🎓 Learning Resources
-
-- **PostgreSQL Documentation:** https://www.postgresql.org/docs/18/
-- **Database Design Tutorial:** https://www.guru99.com/database-design.html
-- **ER Diagram Guide:** https://www.lucidchart.com/pages/er-diagrams
-- **Normalization Explained:** https://www.studytonight.com/dbms/database-normalization.php
-
----
-
-## ⚠️ Common Mistakes to Avoid
-
-❌ **Don't use** `VARCHAR` without length: `VARCHAR(200)` 
-❌ **Don't forget** `ON DELETE CASCADE/RESTRICT` on foreign keys  
-❌ **Don't create** tables without indexes on foreign keys  
-❌ **Don't use** `SERIAL` (use `UUID` instead)  
-❌ **Don't forget** to add comments to tables and complex columns  
-❌ **Don't** commit `.env` file to git  
-
----
-
-## 📞 Need Help?
-
-1. Check existing schema in `01_core_schema.sql`
-2. Review seed data in `database/seeds/`
-3. Ask in team meeting
-4. Check pgAdmin for visual reference
