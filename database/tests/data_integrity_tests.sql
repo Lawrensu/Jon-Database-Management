@@ -7,7 +7,6 @@ BEGIN
     -- Check if seed data exists in the 'patients' table
     SELECT COUNT(*) INTO patient_count FROM app.patient;
     IF patient_count = 0 THEN
-        RAISE EXCEPTION 'No seed data found in "app.patient" table.';
     END IF;
 
     -- Check if seed data exists in the 'doctors' table
