@@ -19,21 +19,22 @@
     
     "sql:run": "docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
     
-    "schema:create": "docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev < database/project/01_core_schema.sql",
+    "schema:create": "type database\\project\\01_core_schema.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
     "schema:drop": "docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -c \"DROP SCHEMA IF EXISTS app CASCADE; CREATE SCHEMA app;\"",
     "schema:rebuild": "npm run schema:drop && npm run schema:create",
     
-    "seeds:run": "for file in database/seeds/*.sql; do echo \"Loading $file...\"; cat \"$file\" | npm run sql:run; done",
-    "seeds:patients": "cat database/seeds/01_patients_seed.sql | npm run sql:run",
-    "seeds:doctors": "cat database/seeds/02_doctors_seed.sql | npm run sql:run",
-    "seeds:appointments": "cat database/seeds/03_appointments_seed.sql | npm run sql:run",
+    "seeds:reference": "type database\\seeds\\00_reference_data.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "seeds:patients": "type database\\seeds\\01_patients_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "seeds:doctors": "type database\\seeds\\02_doctors_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "seeds:run": "npm run seeds:reference && npm run seeds:patients && npm run seeds:doctors",
     
-    "queries:run": "cat database/queries/*.sql | npm run sql:run",
-    "queries:test": "cat database/queries/test_queries.sql | npm run sql:run",
+    "queries:validate": "type database\\queries\\00_validation_queries.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "queries:test": "type database\\queries\\test_queries.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "queries:run": "npm run queries:validate && npm run queries:test",
     
-    "migrate:up": "for file in database/migrations/*.sql; do echo \"Running $file...\"; cat \"$file\" | npm run sql:run; done",
+    "migrate:up": "for file in database/migrations/*.sql; do type \"$file\" | npm run sql:run; done",
     
-    "project:fresh": "npm run db:reset && npm run db:start && sleep 15 && npm run schema:create && npm run seeds:run && echo 'Fresh database ready!'",
-    "project:check": "npm run db:status && npm run test:all"
+    "project:fresh": "npm run db:reset && npm run db:start && timeout /t 30 && npm run schema:create && npm run seeds:run",
+    "project:check": "npm run db:status"
   }
 }
