@@ -56,17 +56,40 @@ npm run db:status
 ## Quick Start
 
 1. **First setup:**
-   ```bash
+```bash
+   # 1. Clone the repository
+   git clone <repository-url>
+   cd Jon-Database-Management
+
+   # 2. Install Node.js dependencies
+   npm install
+
+   # 3. Setup database (one command does everything!)
    npm run db:setup
-   ```
 
-2. **Start working:**
-   ```bash
-   npm run db:start
-   ```
+   # 4. Create database schema
+   npm run schema:create
 
-3. **Access pgAdmin:**
-   Open http://localhost:8080
+   # 5. Load conditions, symptoms, side effects, medications
+   npm run seeds:reference
+
+   #Expected Output
+   ✅ Reference Data Loaded Successfully
+   Conditions: 27 records
+   Symptoms: 10 records
+   Side Effects: 11 records
+   Medications: 15 records
+
+   # 6. Verify everything works
+   npm run queries:validate
+
+   #Expected Output
+   Schema Validation     | 16 | 16 | ✅ PASS
+   Conditions            | 27 | 27 | ✅ PASS
+   Symptoms              | 10 | 10 | ✅ PASS
+   Side Effects          | 11 | 11 | ✅ PASS
+   Medications           | 15 | 15 | ✅ PASS
+```
 
 ## Available Commands
 
