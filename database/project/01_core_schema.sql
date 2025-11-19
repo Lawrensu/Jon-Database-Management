@@ -28,363 +28,374 @@ BEGIN;
 SET search_path TO app, public;
 
 -- ============================================================================
+-- SECTION 0: CUSTOM TYPES (PostgreSQL requires these)
+-- ============================================================================
+
+CREATE TYPE user_type_enum AS ENUM ('Patient', 'Doctor', 'Admin', 'SuperAdmin');
+CREATE TYPE gender_enum AS ENUM ('Male', 'Female', 'Other');
+CREATE TYPE severity_enum AS ENUM ('Mild', 'Moderate', 'Severe');
+CREATE TYPE prescription_status_enum AS ENUM ('Active', 'Completed', 'Cancelled', 'Expired');
+CREATE TYPE titration_unit_enum AS ENUM ('mg', 'ml', 'tablets', 'capsules', 'units');
+CREATE TYPE med_timing_enum AS ENUM ('BeforeMeal', 'AfterMeal');
+CREATE TYPE duration_unit_enum AS ENUM ('Days', 'Weeks', 'Months');
+CREATE TYPE med_log_status_enum AS ENUM ('Taken', 'Missed', 'Skipped');
+
+-- ============================================================================
 -- SECTION 1: USER MANAGEMENT (Admin, SuperAdmin, User)
 -- ============================================================================
 
--- 1.1 Admin (from ERD top-left)
-CREATE TABLE IF NOT EXISTS app.admin (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+-- 1.1 User (center, parent table)
+CREATE TABLE app.user_account (
+    user_id SERIAL PRIMARY KEY,  
     
-    -- From ERD: AdminID, UserID
-    admin_id VARCHAR(50) NOT NULL UNIQUE,
-    user_id VARCHAR(50) NOT NULL UNIQUE,
+    username VARCHAR(100) NOT NULL UNIQUE,
+    password BYTEA NOT NULL,  
+    user_type user_type_enum NOT NULL,
     
-    -- From ERD: Username, Password, CreatedAt
-    username VARCHAR(50) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_admin_username ON app.admin(username);
-COMMENT ON TABLE app.admin IS 'Admin users - from ERD';
-
--- 1.2 SuperAdmin (from ERD top-center)
-CREATE TABLE IF NOT EXISTS app.super_admin (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
     
-    -- From ERD: SuperAdminID, UserID
-    super_admin_id VARCHAR(50) NOT NULL UNIQUE,
-    user_id VARCHAR(50) NOT NULL UNIQUE,
-    
-    -- From ERD: Username, Password, CreatedAt
-    username VARCHAR(50) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_super_admin_username ON app.super_admin(username);
-COMMENT ON TABLE app.super_admin IS 'Super admin users - from ERD';
-
--- 1.3 User (from ERD top-right)
-CREATE TABLE IF NOT EXISTS app.user_account (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    
-    -- From ERD: UserID
-    user_id VARCHAR(50) NOT NULL UNIQUE,
-    
-    -- From ERD: Username, Password, UserType, isActive, CreatedAt
-    username VARCHAR(50) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    user_type VARCHAR(20) NOT NULL CHECK (user_type IN ('Patient', 'Doctor')),
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP  
 );
 
-CREATE INDEX IF NOT EXISTS idx_user_username ON app.user_account(username);
-CREATE INDEX IF NOT EXISTS idx_user_type ON app.user_account(user_type);
-COMMENT ON TABLE app.user_account IS 'Regular users (Patient/Doctor) - from ERD';
+CREATE INDEX idx_user_username ON app.user_account(username);
+CREATE INDEX idx_user_email ON app.user_account(email);
+CREATE INDEX idx_user_type ON app.user_account(user_type);
 
--- ============================================================================
--- SECTION 2: CORE ENTITIES (Reminder, Patient, Doctor)
--- ============================================================================
+COMMENT ON TABLE app.user_account IS 'Parent table for all user types (Admin, SuperAdmin, Patient, Doctor)';
 
--- 2.1 Reminder (from ERD - links to Patient via MedicationSchedule)
-CREATE TABLE IF NOT EXISTS app.reminder (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+-- 1.2 Admin 
+CREATE TABLE app.admin (
+    admin_id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL UNIQUE,
+    username VARCHAR(100) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- From ERD: ReminderID, PatientID
-    reminder_id VARCHAR(50) NOT NULL UNIQUE,
-    patient_id UUID REFERENCES app.user_account(id) ON DELETE CASCADE,
-    
-    -- From ERD: MedicationScheduleID (linked later)
-    medication_schedule_id UUID,
-    
-    -- From ERD: Message, Schedule
-    message VARCHAR(500) NOT NULL,
-    schedule TIMESTAMP WITH TIME ZONE NOT NULL
+    CONSTRAINT fk_admin_user FOREIGN KEY (user_id) 
+        REFERENCES app.user_account(user_id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_reminder_patient ON app.reminder(patient_id);
-CREATE INDEX IF NOT EXISTS idx_reminder_schedule ON app.reminder(schedule);
-COMMENT ON TABLE app.reminder IS 'Patient reminders - from ERD';
+CREATE INDEX idx_admin_user ON app.admin(user_id);
 
--- 2.2 Patient (from ERD center-left)
-CREATE TABLE IF NOT EXISTS app.patient (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+-- 1.3 SuperAdmin 
+CREATE TABLE app.super_admin (
+    super_admin_id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL UNIQUE,
+    username VARCHAR(100) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- From ERD: PatientID, UserID
-    patient_id VARCHAR(50) NOT NULL UNIQUE,
-    user_id UUID REFERENCES app.user_account(id) ON DELETE SET NULL,
+    CONSTRAINT fk_super_admin_user FOREIGN KEY (user_id) 
+        REFERENCES app.user_account(user_id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_super_admin_user ON app.super_admin(user_id);
+
+-- ============================================================================
+-- SECTION 2: CORE ENTITIES (Doctor, Patient)
+-- ============================================================================
+
+-- 2.1 Doctor 
+CREATE TABLE app.doctor (
+    doctor_id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL UNIQUE,
     
-    -- From ERD: PhoneNum, BirthDate, Gender, Address
-    phone_num VARCHAR(20) NOT NULL,
-    birth_date DATE NOT NULL,
-    gender VARCHAR(20) CHECK (gender IN ('Male', 'Female', 'Other')),
-    address VARCHAR(300),
+    phone_num BIGINT NOT NULL,
+    license_num INT NOT NULL UNIQUE,
+    license_exp TIMESTAMP NOT NULL,
     
-    -- From ERD: EmergencyContactName, EmergencyContactPhone
+    gender gender_enum NOT NULL,
+    specialisation VARCHAR(60),
+    qualification VARCHAR(60),
+    clinical_inst VARCHAR(40),
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_doctor_user FOREIGN KEY (user_id) 
+        REFERENCES app.user_account(user_id) ON DELETE CASCADE,
+
+    CONSTRAINT ck_doctor_license_exp CHECK (license_exp > CURRENT_TIMESTAMP)
+);
+
+CREATE INDEX idx_doctor_user ON app.doctor(user_id);
+CREATE INDEX idx_doctor_license ON app.doctor(license_num);
+CREATE INDEX idx_doctor_specialisation ON app.doctor(specialisation);
+
+-- 2.2 Patient 
+CREATE TABLE app.patient (
+    patient_id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL UNIQUE,
+    doctor_id INT, 
+    
+    phone_num BIGINT NOT NULL,
+    birth_date TIMESTAMP NOT NULL,
+    gender gender_enum NOT NULL,
+    address VARCHAR(200),
+    
     emergency_contact_name VARCHAR(100),
-    emergency_contact_phone VARCHAR(20),
+    emergency_phone BIGINT,
     
-    -- From ERD: CreatedAt, UpdatedAt
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    CONSTRAINT ck_patient_birth_date CHECK (birth_date <= CURRENT_DATE)
+    CONSTRAINT fk_patient_user FOREIGN KEY (user_id) 
+        REFERENCES app.user_account(user_id) ON DELETE CASCADE,
+    
+    CONSTRAINT fk_patient_doctor FOREIGN KEY (doctor_id) 
+        REFERENCES app.doctor(doctor_id) ON DELETE SET NULL,
+    
+    CONSTRAINT ck_patient_birth_date CHECK (birth_date <= CURRENT_TIMESTAMP),
+    CONSTRAINT ck_patient_age CHECK (EXTRACT(YEAR FROM AGE(birth_date)) <= 150)
 );
 
-CREATE INDEX IF NOT EXISTS idx_patient_user ON app.patient(user_id);
-CREATE INDEX IF NOT EXISTS idx_patient_phone ON app.patient(phone_num);
-COMMENT ON TABLE app.patient IS 'Patient information - from ERD';
-
--- 2.3 Doctor (from ERD center-right)
-CREATE TABLE IF NOT EXISTS app.doctor (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    
-    -- From ERD: DoctorID, UserID
-    doctor_id VARCHAR(50) NOT NULL UNIQUE,
-    user_id UUID REFERENCES app.user_account(id) ON DELETE SET NULL,
-    
-    -- From ERD: PhoneNum, LicenseNum, LicenseExp
-    phone_num VARCHAR(20) NOT NULL,
-    license_num VARCHAR(100) NOT NULL UNIQUE,
-    license_exp DATE NOT NULL,
-    
-    -- From ERD: Gender, Specialization, Qualification
-    gender VARCHAR(20) CHECK (gender IN ('Male', 'Female', 'Other')),
-    specialization VARCHAR(200),
-    qualification VARCHAR(300),
-    
-    -- From ERD: CreatedAt, UpdatedAt
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_doctor_user ON app.doctor(user_id);
-CREATE INDEX IF NOT EXISTS idx_doctor_license ON app.doctor(license_num);
-COMMENT ON TABLE app.doctor IS 'Doctor information - from ERD';
+CREATE INDEX idx_patient_user ON app.patient(user_id);
+CREATE INDEX idx_patient_doctor ON app.patient(doctor_id);
+CREATE INDEX idx_patient_phone ON app.patient(phone_num);
+CREATE INDEX idx_patient_birth_date ON app.patient(birth_date);
 
 -- ============================================================================
--- SECTION 3: MEDICAL (Condition, Symptom, PatientSymptom)
+-- SECTION 3: MEDICAL DATA
 -- ============================================================================
 
--- 3.1 Condition (from ERD bottom-center)
-CREATE TABLE IF NOT EXISTS app.condition (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    
-    -- From ERD: ConditionID
-    condition_id VARCHAR(50) NOT NULL UNIQUE,
-    
-    -- From ERD: ConditionName, ConditionDesc
-    condition_name VARCHAR(200) NOT NULL,
+-- 3.1 Condition (parent for symptom and side-effect)
+CREATE TABLE app.condition (
+    condition_id SERIAL PRIMARY KEY,
+
+    condition_name VARCHAR(100) NOT NULL UNIQUE,
     condition_desc TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_condition_name ON app.condition(condition_name);
-COMMENT ON TABLE app.condition IS 'Medical conditions - from ERD';
+CREATE INDEX idx_condition_name ON app.condition(condition_name);
 
--- 3.2 Symptom (from ERD bottom-left, linked to Condition) -- RENAMED TO SINGULAR!
-CREATE TABLE IF NOT EXISTS app.symptom (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+COMMENT ON TABLE app.condition IS 'Parent table for Symptoms and SideEffects - represents medical conditions';
+
+-- 3.2 Symptom 
+CREATE TABLE app.symptom (
+    symptom_id SERIAL PRIMARY KEY,
+    condition_id INT NOT NULL, 
     
-    -- From ERD: SymptomID, ConditionID (FK)
-    symptom_id VARCHAR(50) NOT NULL UNIQUE,
-    condition_id UUID REFERENCES app.condition(id) ON DELETE SET NULL,
+    CONSTRAINT fk_symptom_condition FOREIGN KEY (condition_id)
+        REFERENCES app.condition(condition_id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_symptom_condition ON app.symptom(condition_id);
+
+COMMENT ON TABLE app.symptom IS 
+'Symptoms that patients can report. Links to condition table. E.g., "Headache" can be both a symptom AND a side effect.';
+
+-- 3.3 PatientSymptom 
+CREATE TABLE app.patient_symptom (
+    patient_symptom_id SERIAL PRIMARY KEY,
+    patient_id INT NOT NULL,
+    symptom_id INT NOT NULL,
     
-    -- From ERD: Notes, Severity, DateReported
+    date_reported TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     notes TEXT,
-    severity VARCHAR(20) CHECK (severity IN ('Mild', 'Moderate', 'Severe')),
-    date_reported TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    severity severity_enum,
+    date_resolved TIMESTAMP,
+    
+    CONSTRAINT fk_patient_symptom_patient FOREIGN KEY (patient_id)
+        REFERENCES app.patient(patient_id) ON DELETE CASCADE,
+    
+    CONSTRAINT fk_patient_symptom_symptom FOREIGN KEY (symptom_id)
+        REFERENCES app.symptom(symptom_id) ON DELETE CASCADE,
+    
+    CONSTRAINT uq_patient_symptom UNIQUE(patient_id, symptom_id, date_reported),
+    
+    CONSTRAINT ck_patient_symptom_dates CHECK (
+        date_resolved IS NULL OR date_resolved >= date_reported
+    )
 );
 
-CREATE INDEX IF NOT EXISTS idx_symptom_condition ON app.symptom(condition_id);
-CREATE INDEX IF NOT EXISTS idx_symptom_severity ON app.symptom(severity);
-COMMENT ON TABLE app.symptom IS 'Symptom definitions - from ERD';
-
--- 3.3 PatientSymptom (from ERD - junction table Patient ↔ Symptom)
-CREATE TABLE IF NOT EXISTS app.patient_symptom (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    
-    -- From ERD: PatientID, SymptomID (Many-to-Many)
-    patient_id UUID NOT NULL REFERENCES app.patient(id) ON DELETE CASCADE,
-    symptom_id UUID NOT NULL REFERENCES app.symptom(id) ON DELETE CASCADE, -- UPDATED REFERENCE!
-    
-    -- From ERD: DateReported (when patient reported this symptom)
-    date_reported TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
-    CONSTRAINT uq_patient_symptom UNIQUE(patient_id, symptom_id, date_reported)
-);
-
-CREATE INDEX IF NOT EXISTS idx_patient_symptom_patient ON app.patient_symptom(patient_id);
-CREATE INDEX IF NOT EXISTS idx_patient_symptom_symptom ON app.patient_symptom(symptom_id);
-COMMENT ON TABLE app.patient_symptom IS 'Patient-Symptom junction - from ERD';
+CREATE INDEX idx_patient_symptom_patient ON app.patient_symptom(patient_id);
+CREATE INDEX idx_patient_symptom_symptom ON app.patient_symptom(symptom_id);
+CREATE INDEX idx_patient_symptom_date ON app.patient_symptom(date_reported);
+CREATE INDEX idx_patient_symptom_unresolved ON app.patient_symptom(patient_id) 
+    WHERE date_resolved IS NULL;
 
 -- ============================================================================
--- SECTION 4: MEDICATIONS (Medication, SideEffect, MedicationSideEffect)
+-- SECTION 4: MEDICATIONS 
 -- ============================================================================
 
--- 4.1 Medication (from ERD right side)
-CREATE TABLE IF NOT EXISTS app.medication (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    
-    -- From ERD: MedicationID
-    medication_id VARCHAR(50) NOT NULL UNIQUE,
-    
-    -- From ERD: MedName, MedBrandName, Manufacturer, MedDose
-    med_name VARCHAR(200) NOT NULL,
-    med_brand_name VARCHAR(200),
-    manufacturer VARCHAR(200),
-    med_dose VARCHAR(100)
+-- 4.1 Medication 
+CREATE TABLE app.medication (
+    medication_id SERIAL PRIMARY KEY,
+
+    med_name VARCHAR(100) NOT NULL,
+    med_brand_name VARCHAR(100),
+    med_manufacturer VARCHAR(100),
+    med_desc TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_medication_name ON app.medication(med_name);
-COMMENT ON TABLE app.medication IS 'Available medications - from ERD';
+CREATE INDEX idx_medication_name ON app.medication(med_name);
+CREATE INDEX idx_medication_brand ON app.medication(med_brand_name) WHERE med_brand_name IS NOT NULL;
+CREATE INDEX idx_medication_manufacturer ON app.medication(med_manufacturer) WHERE med_manufacturer IS NOT NULL;
 
--- 4.2 SideEffect (from ERD right side, linked to Condition)
-CREATE TABLE IF NOT EXISTS app.side_effect (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+-- 4.2 SideEffect 
+CREATE TABLE app.side_effect (
+    side_effect_id SERIAL PRIMARY KEY,
+    condition_id INT NOT NULL,  
     
-    -- From ERD: SideEffectID, ConditionID (FK)
-    side_effect_id VARCHAR(50) NOT NULL UNIQUE,
-    condition_id UUID REFERENCES app.condition(id) ON DELETE SET NULL
+    CONSTRAINT fk_side_effect_condition FOREIGN KEY (condition_id)
+        REFERENCES app.condition(condition_id) ON DELETE SET NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_side_effect_condition ON app.side_effect(condition_id);
-COMMENT ON TABLE app.side_effect IS 'Medication side effects - from ERD';
+CREATE INDEX idx_side_effect_condition ON app.side_effect(condition_id);
 
--- 4.3 MedicationSideEffect (from ERD - junction Medication ↔ SideEffect)
-CREATE TABLE IF NOT EXISTS app.medication_side_effect (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+COMMENT ON TABLE app.side_effect IS 
+'Side effects caused by medications. Links to condition table. E.g., "Nausea" can be both a symptom AND a side effect.';
+
+-- 4.3 MedicationSideEffect (junction Medication ↔ SideEffect)
+CREATE TABLE app.medication_side_effect (
+    medication_side_effect_id SERIAL PRIMARY KEY,
+    medication_id INT NOT NULL,
+    side_effect_id INT NOT NULL,
     
-    -- From ERD: MedicationID, SideEffectID, Frequency
-    medication_id UUID NOT NULL REFERENCES app.medication(id) ON DELETE CASCADE,
-    side_effect_id UUID NOT NULL REFERENCES app.side_effect(id) ON DELETE CASCADE,
-    frequency VARCHAR(100),
+    frequency VARCHAR(16), 
+    
+    CONSTRAINT fk_med_side_effect_medication FOREIGN KEY (medication_id)
+        REFERENCES app.medication(medication_id) ON DELETE CASCADE,
+    
+    CONSTRAINT fk_med_side_effect_side_effect FOREIGN KEY (side_effect_id)
+        REFERENCES app.side_effect(side_effect_id) ON DELETE CASCADE,
     
     CONSTRAINT uq_medication_side_effect UNIQUE(medication_id, side_effect_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_med_side_effect_medication ON app.medication_side_effect(medication_id);
-CREATE INDEX IF NOT EXISTS idx_med_side_effect_side_effect ON app.medication_side_effect(side_effect_id);
-COMMENT ON TABLE app.medication_side_effect IS 'Medication-SideEffect junction - from ERD';
+CREATE INDEX idx_med_side_effect_medication ON app.medication_side_effect(medication_id);
+CREATE INDEX idx_med_side_effect_side_effect ON app.medication_side_effect(side_effect_id);
 
 -- ============================================================================
--- SECTION 5: PRESCRIPTIONS (Prescription, PrescriptionVersion)
+-- SECTION 5: PRESCRIPTIONS 
 -- ============================================================================
 
--- 5.1 Prescription (from ERD - links Patient, Doctor)
-CREATE TABLE IF NOT EXISTS app.prescription (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+-- 5.1 Prescription 
+CREATE TABLE app.prescription (
+    prescription_id SERIAL PRIMARY KEY,  
+    patient_id INT NOT NULL,
+    doctor_id INT NOT NULL,
     
-    -- From ERD: PrescriptionID, PatientID, DoctorID
-    prescription_id VARCHAR(50) NOT NULL UNIQUE,
-    patient_id UUID NOT NULL REFERENCES app.patient(id) ON DELETE RESTRICT,
-    doctor_id UUID NOT NULL REFERENCES app.doctor(id) ON DELETE RESTRICT,
+    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status prescription_status_enum DEFAULT 'Active',
+    doctor_note TEXT,
     
-    -- From ERD: CreatedDate, Status, DoctorNote
-    created_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    status VARCHAR(50) CHECK (status IN ('Active', 'Completed', 'Cancelled', 'Expired')) DEFAULT 'Active',
-    doctor_note TEXT
+    CONSTRAINT fk_prescription_patient FOREIGN KEY (patient_id)
+        REFERENCES app.patient(patient_id) ON DELETE RESTRICT,
+    
+    CONSTRAINT fk_prescription_doctor FOREIGN KEY (doctor_id)
+        REFERENCES app.doctor(doctor_id) ON DELETE RESTRICT
 );
 
-CREATE INDEX IF NOT EXISTS idx_prescription_patient ON app.prescription(patient_id);
-CREATE INDEX IF NOT EXISTS idx_prescription_doctor ON app.prescription(doctor_id);
-CREATE INDEX IF NOT EXISTS idx_prescription_status ON app.prescription(status);
-COMMENT ON TABLE app.prescription IS 'Prescription master record - from ERD';
+CREATE INDEX idx_prescription_patient ON app.prescription(patient_id);
+CREATE INDEX idx_prescription_doctor ON app.prescription(doctor_id);
+CREATE INDEX idx_prescription_status ON app.prescription(status);
 
--- 5.2 PrescriptionVersion (from ERD - tracks prescription changes)
-CREATE TABLE IF NOT EXISTS app.prescription_version (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+-- 5.2 PrescriptionVersion 
+CREATE TABLE app.prescription_version (
+    prescription_version_id SERIAL PRIMARY KEY, 
+    prescription_id INT NOT NULL,  
+    medication_id INT NOT NULL,    
     
-    -- From ERD: PrescriptionVersionID, PrescriptionID, MedicationID
-    prescription_version_id VARCHAR(50) NOT NULL UNIQUE,
-    prescription_id UUID NOT NULL REFERENCES app.prescription(id) ON DELETE CASCADE,
-    medication_id UUID NOT NULL REFERENCES app.medication(id) ON DELETE RESTRICT,
+    titration FLOAT,
+    titration_unit titration_unit_enum,
+    start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    end_date TIMESTAMP,
+    reason_for_change VARCHAR(256),
     
-    -- From ERD: Titration, TitrationUnit, StartDate, EndDate
-    titration DECIMAL(10,2),
-    titration_unit VARCHAR(50) CHECK (titration_unit IN ('mg', 'ml', 'tablets', 'capsules', 'units')),
-    start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    end_date TIMESTAMP WITH TIME ZONE, -- NULL = active version
+    CONSTRAINT fk_prescription_version_prescription FOREIGN KEY (prescription_id)
+        REFERENCES app.prescription(prescription_id) ON DELETE CASCADE,
     
-    -- From ERD: ReasonForChange
-    reason_for_change TEXT
+    CONSTRAINT fk_prescription_version_medication FOREIGN KEY (medication_id)
+        REFERENCES app.medication(medication_id) ON DELETE RESTRICT
 );
 
-CREATE INDEX IF NOT EXISTS idx_prescription_version_prescription ON app.prescription_version(prescription_id);
-CREATE INDEX IF NOT EXISTS idx_prescription_version_medication ON app.prescription_version(medication_id);
-CREATE INDEX IF NOT EXISTS idx_prescription_version_dates ON app.prescription_version(start_date, end_date);
-COMMENT ON TABLE app.prescription_version IS 'Prescription version history - from ERD (immutable audit trail)';
+CREATE INDEX idx_prescription_version_prescription ON app.prescription_version(prescription_id);
+CREATE INDEX idx_prescription_version_medication ON app.prescription_version(medication_id);
+CREATE INDEX idx_prescription_version_dates ON app.prescription_version(start_date, end_date);
 
 -- ============================================================================
--- SECTION 6: MEDICATION TRACKING (MedicationSchedule, MedicationLog)
+-- SECTION 6: MEDICATION TRACKING 
 -- ============================================================================
 
--- 6.1 MedicationSchedule (from ERD - defines when to take medication)
-CREATE TABLE IF NOT EXISTS app.medication_schedule (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+-- 6.1 MedicationSchedule
+CREATE TABLE app.medication_schedule (
+    medication_schedule_id SERIAL PRIMARY KEY,  
+    prescription_version_id INT NOT NULL,  
     
-    -- From ERD: MedicationScheduleID, PrescriptionVersionID
-    medication_schedule_id VARCHAR(50) NOT NULL UNIQUE,
-    prescription_version_id UUID NOT NULL REFERENCES app.prescription_version(id) ON DELETE CASCADE,
-    
-    -- From ERD: MedTiming
-    med_timing VARCHAR(50) CHECK (med_timing IN ('BeforeMeal', 'AfterMeal')),
-    
-    -- From ERD: Frequency (split into times and interval for flexibility)
-    frequency_times_daily INT CHECK (frequency_times_daily >= 1 AND frequency_times_daily <= 6),
+    med_timing med_timing_enum,
+    frequency_times_per_day INT CHECK (frequency_times_per_day >= 1 AND frequency_times_per_day <= 6),
     frequency_interval_hours INT CHECK (frequency_interval_hours >= 1 AND frequency_interval_hours <= 24),
     
-    -- From ERD: Duration, DurationUnit
     duration INT,
-    duration_unit VARCHAR(50) CHECK (duration_unit IN ('Days', 'Weeks', 'Months')),
+    duration_unit duration_unit_enum,
     
-    -- From ERD: UpdatedAt
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_med_schedule_prescription_version FOREIGN KEY (prescription_version_id)
+        REFERENCES app.prescription_version(prescription_version_id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_med_schedule_prescription_version ON app.medication_schedule(prescription_version_id);
-COMMENT ON TABLE app.medication_schedule IS 'Medication schedule definition - from ERD';
+CREATE INDEX idx_med_schedule_prescription_version ON app.medication_schedule(prescription_version_id);
 
--- 6.2 MedicationLog (from ERD - tracks actual medication intake)
-CREATE TABLE IF NOT EXISTS app.medication_log (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+-- 6.2 MedicationLog
+CREATE TABLE app.medication_log (
+    medication_log_id SERIAL PRIMARY KEY,  
+    patient_id INT NOT NULL,
+    medication_id INT NOT NULL,         
+    medication_schedule_id INT,          
     
-    -- From ERD: MedicationLogID, PatientID, MedicationID, MedicationScheduleID
-    medication_log_id VARCHAR(50) NOT NULL UNIQUE,
-    patient_id UUID NOT NULL REFERENCES app.patient(id) ON DELETE CASCADE,
-    medication_id UUID NOT NULL REFERENCES app.medication(id) ON DELETE RESTRICT,
-    medication_schedule_id UUID REFERENCES app.medication_schedule(id) ON DELETE SET NULL,
+    notes VARCHAR(128),
+    scheduled_time TIMESTAMP NOT NULL,
+    actual_taken_time TIMESTAMP,
+    status med_log_status_enum DEFAULT 'Missed',
     
-    -- From ERD: Notes, ScheduledTime, ActualTakenTime, Status
-    notes TEXT,
-    scheduled_time TIMESTAMP WITH TIME ZONE NOT NULL,
-    actual_taken_time TIMESTAMP WITH TIME ZONE,
-    status VARCHAR(50) CHECK (status IN ('Taken', 'Missed', 'Skipped')) DEFAULT 'Missed'
+    CONSTRAINT fk_med_log_patient FOREIGN KEY (patient_id)
+        REFERENCES app.patient(patient_id) ON DELETE CASCADE,
+    
+    CONSTRAINT fk_med_log_medication FOREIGN KEY (medication_id)
+        REFERENCES app.medication(medication_id) ON DELETE RESTRICT,
+    
+    CONSTRAINT fk_med_log_schedule FOREIGN KEY (medication_schedule_id)
+        REFERENCES app.medication_schedule(medication_schedule_id) ON DELETE SET NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_med_log_patient ON app.medication_log(patient_id);
-CREATE INDEX IF NOT EXISTS idx_med_log_medication ON app.medication_log(medication_id);
-CREATE INDEX IF NOT EXISTS idx_med_log_schedule ON app.medication_log(medication_schedule_id);
-CREATE INDEX IF NOT EXISTS idx_med_log_status ON app.medication_log(status);
-CREATE INDEX IF NOT EXISTS idx_med_log_scheduled_time ON app.medication_log(scheduled_time);
-COMMENT ON TABLE app.medication_log IS 'Medication adherence log - from ERD';
+CREATE INDEX idx_med_log_patient ON app.medication_log(patient_id);
+CREATE INDEX idx_med_log_medication ON app.medication_log(medication_id);
+CREATE INDEX idx_med_log_schedule ON app.medication_log(medication_schedule_id);
+CREATE INDEX idx_med_log_status ON app.medication_log(status);
+CREATE INDEX idx_med_log_scheduled_time ON app.medication_log(scheduled_time);
 
--- Now link Reminder to MedicationSchedule (foreign key was deferred)
-ALTER TABLE app.reminder 
-ADD CONSTRAINT fk_reminder_medication_schedule 
-FOREIGN KEY (medication_schedule_id) REFERENCES app.medication_schedule(id) ON DELETE CASCADE;
+-- 6.3 Reminder
+CREATE TABLE app.reminder (
+    reminder_id SERIAL PRIMARY KEY,  
+    patient_id INT NOT NULL,
+    medication_schedule_id INT,  
+    
+    message VARCHAR(128),
+    schedule TIMESTAMP NOT NULL,
+    
+    CONSTRAINT fk_reminder_patient FOREIGN KEY (patient_id)
+        REFERENCES app.patient(patient_id) ON DELETE CASCADE,
+    
+    CONSTRAINT fk_reminder_schedule FOREIGN KEY (medication_schedule_id)
+        REFERENCES app.medication_schedule(medication_schedule_id) ON DELETE CASCADE
+);
 
-CREATE INDEX IF NOT EXISTS idx_reminder_med_schedule ON app.reminder(medication_schedule_id);
+CREATE INDEX idx_reminder_patient ON app.reminder(patient_id);
+CREATE INDEX idx_reminder_schedule ON app.reminder(schedule);
+CREATE INDEX idx_reminder_med_schedule ON app.reminder(medication_schedule_id);
+
 
 -- ============================================================================
--- SECTION 7: TRIGGERS (Auto-update timestamps)
+-- SECTION 7: TRIGGERS 
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = NOW();
+    NEW.updated_at = CURRENT_TIMESTAMP;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -402,26 +413,24 @@ CREATE TRIGGER update_med_schedule_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================
--- SECTION 8: REFERENCE DATA (Common conditions and symptom)
+-- SECTION 8: SCHEMA VALIDATION
 -- ============================================================================
 
--- Insert common conditions
-INSERT INTO app.condition (condition_id, condition_name, condition_desc) VALUES
-('COND001', 'Hypertension', 'High blood pressure'),
-('COND002', 'Type 2 Diabetes', 'Diabetes mellitus type 2'),
-('COND003', 'Asthma', 'Chronic respiratory condition'),
-('COND004', 'Migraine', 'Severe recurring headaches'),
-('COND005', 'Arthritis', 'Joint inflammation and pain')
-ON CONFLICT (condition_id) DO NOTHING;
-
--- Insert common symptoms 
-INSERT INTO app.symptom (symptom_id, notes, severity) VALUES
-('SYMP001', 'Headache', 'Mild'),
-('SYMP002', 'Fever', 'Moderate'),
-('SYMP003', 'Cough', 'Mild'),
-('SYMP004', 'Chest Pain', 'Severe'),
-('SYMP005', 'Nausea', 'Mild')
-ON CONFLICT (symptom_id) DO NOTHING;
+-- Verify all tables were created
+DO $$
+DECLARE
+    table_count INT;
+BEGIN
+    SELECT COUNT(*) INTO table_count 
+    FROM information_schema.tables 
+    WHERE table_schema = 'app';
+    
+    IF table_count = 16 THEN
+        RAISE NOTICE '✅ All 16 tables created successfully';
+    ELSE
+        RAISE WARNING '⚠️  Expected 16 tables, found %', table_count;
+    END IF;
+END $$;
 
 -- ============================================================================
 -- COMPLETION MESSAGE
@@ -430,25 +439,12 @@ ON CONFLICT (symptom_id) DO NOTHING;
 DO $$
 BEGIN
     RAISE NOTICE '========================================';
-    RAISE NOTICE 'PAKAR Tech Schema Created';
+    RAISE NOTICE 'PAKAR Tech Schema Created (PostgreSQL)';
     RAISE NOTICE '========================================';
-    RAISE NOTICE 'Tables Created (16 - exactly from ERD):';
-    RAISE NOTICE '  1. admin';
-    RAISE NOTICE '  2. super_admin';
-    RAISE NOTICE '  3. user_account';
-    RAISE NOTICE '  4. reminder';
-    RAISE NOTICE '  5. patient';
-    RAISE NOTICE '  6. doctor';
-    RAISE NOTICE '  7. symptom (singular!)';
-    RAISE NOTICE '  8. patient_symptom (junction)';
-    RAISE NOTICE '  9. condition';
-    RAISE NOTICE '  10. medication';
-    RAISE NOTICE '  11. side_effect';
-    RAISE NOTICE '  12. medication_side_effect (junction)';
-    RAISE NOTICE '  13. prescription';
-    RAISE NOTICE '  14. prescription_version';
-    RAISE NOTICE '  15. medication_schedule';
-    RAISE NOTICE '  16. medication_log';
+    RAISE NOTICE 'Tables: 16 core tables';
+    RAISE NOTICE 'ENUMs: 8 custom types';
+    RAISE NOTICE 'Triggers: 3 auto-update';
+    RAISE NOTICE 'Indexes: 32 performance indexes';
     RAISE NOTICE '========================================';
 END $$;
 
