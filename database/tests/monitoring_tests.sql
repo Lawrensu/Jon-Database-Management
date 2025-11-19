@@ -1,3 +1,10 @@
+-- Create test results table if it doesn't exist
+CREATE TEMP TABLE IF NOT EXISTS test_results (
+    test_name VARCHAR,
+    status VARCHAR,
+    message VARCHAR
+);
+
 DO $$ BEGIN
     RAISE NOTICE '========================================';
     RAISE NOTICE 'Starting Database Monitoring Tests...';

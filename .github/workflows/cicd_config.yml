@@ -87,11 +87,5 @@ jobs:
         env:
           PGPASSWORD: JonathanBangerDatabase26!
         run: |
-          cat > /tmp/run_tests.sql << 'EOF'
-          \set ON_ERROR_STOP on
-          \i ./database/tests/schema_tests.sql
-          \i ./database/tests/data_integrity_tests.sql
-          \i ./database/tests/monitoring_tests.sql
-          EOF
-          psql -h localhost -U jondb_admin -d jon_database_dev -f /tmp/run_tests.sql
+          psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/tests/run_all_tests_with_reporting.sql
   
