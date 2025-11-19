@@ -91,19 +91,7 @@ jobs:
           \set ON_ERROR_STOP on
           \i ./database/tests/schema_tests.sql
           \i ./database/tests/data_integrity_tests.sql
+          \i ./database/tests/monitoring_tests.sql
           EOF
           psql -h localhost -U jondb_admin -d jon_database_dev -f /tmp/run_tests.sql
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Build application
-        run: npm run build
   
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Deploy application
-        run: echo "Deploy to production"
