@@ -26,6 +26,7 @@
     "seeds:reference": "type database\\seeds\\00_reference_data.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
     "seeds:patients": "type database\\seeds\\01_patients_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
     "seeds:doctors": "type database\\seeds\\02_doctors_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "seeds:admins": "type database\\seeds\\03_admins_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
     "seeds:run": "npm run seeds:reference && npm run seeds:patients && npm run seeds:doctors",
     
     "queries:validate": "type database\\queries\\00_validation_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
