@@ -67,7 +67,7 @@ INSERT INTO app.user_account (username, password, user_type, first_name, last_na
 SELECT
   lower(first_name || '.' || last_name || g::text) AS username,
   decode('736565642d70617373776f7264','hex') AS password, -- 'seed-password' as BYTEA
-  'Patient' AS user_type,
+  'Patient'::user_type_enum AS user_type,
   first_name,
   last_name,
   lower(first_name || '.' || last_name || g::text || '@pakartech.com') AS email,
@@ -86,7 +86,8 @@ INSERT INTO app.patient (
   address,
   emergency_contact_name,
   emergency_phone,
-  created_at
+  created_at,
+  updated_at
 )
 SELECT
   ua.user_id,
@@ -94,14 +95,15 @@ SELECT
   gen.phone_num,
   (CURRENT_DATE - ((gen.age_years * 365) + floor(random() * 365)::int) * INTERVAL '1 day')::timestamp AS birth_date,
   CASE (gen.g % 3)
-    WHEN 0 THEN 'Male'::gender_enum
-    WHEN 1 THEN 'Female'::gender_enum
-    ELSE 'Other'::gender_enum
-  END AS gender,
+    WHEN 0 THEN 'Male'
+    WHEN 1 THEN 'Female'
+    ELSE 'Other'
+  END::gender_enum AS gender,
   (gen.address_line1 || COALESCE(' ' || gen.address_line2, '') || ', ' || gen.city || ', ' || gen.state || ' ' || gen.postal_code) AS address,
   gen.emergency_contact_name,
   gen.emergency_phone,
-  gen.registration_date::timestamp AS created_at
+  gen.registration_date::timestamp AS created_at,
+  gen.registration_date::timestamp AS updated_at
 FROM gen
 JOIN app.user_account ua ON ua.username = lower(gen.first_name || '.' || gen.last_name || gen.g::text)
 ON CONFLICT (user_id) DO NOTHING;
