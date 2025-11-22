@@ -117,17 +117,11 @@ INSERT INTO app.patient (
   emergency_contact_name, emergency_contact_phone, created_at
 )
 SELECT
-  -- patient_id e.g. PT20250001
   'PT' || to_char(CURRENT_DATE,'YYYY') || LPAD(g::text,4,'0') AS patient_id,
-  -- link to the corresponding user_account UUID id
-  (SELECT id FROM app.user_account WHERE user_id = 'USER' || to_char(CURRENT_DATE,'YYYY') || LPAD(g::text,4,'0')) AS user_id,
-  -- use the generated primary phone as phone_num
+  'USER' || to_char(CURRENT_DATE,'YYYY') || LPAD(g::text,4,'0') AS user_id,
   phone_primary AS phone_num,
-  -- dob from age_years with an added random day offset within the year
   (CURRENT_DATE - ((age_years * 365) + floor(random() * 365)::int) * INTERVAL '1 day')::date AS birth_date,
-  -- gender rotate with reasonable distribution
   (CASE WHEN (g % 3) = 1 THEN 'Male' WHEN (g % 3) = 2 THEN 'Female' ELSE 'Other' END) AS gender,
-  -- combine address parts into a single address column used by core schema
   (address_line1 || COALESCE(' ' || address_line2, '') || ', ' || city || ', ' || state || ' ' || postal_code) AS address,
   emergency_contact_name,
   emergency_contact_phone,
@@ -136,4 +130,4 @@ FROM gen
 ON CONFLICT (patient_id) DO NOTHING;
 
 -- quick verification message (select row count from inserted set is environment-specific)
-SELECT '01_patients_seed: completed (up to 200 records inserted, duplicates skipped).' AS info;
+SELECT '01_patients_seed: completed (up to 200 records inserted, duplicates skipped, user linkage fixed).' AS info;
