@@ -49,51 +49,58 @@ gen AS (
 ),
 user_inserts AS (
   INSERT INTO app.user_account (
-    user_id,
     username, 
-    password_hash, 
+    password, 
     user_type, 
+    first_name, 
+    last_name, 
+    email, 
     is_active, 
     created_at
   )
   SELECT
-    'P' || LPAD(g::text, 6, '0') AS user_id,
     lower(first_name || '.' || last_name || g::text) AS username,
-    '$2a$10$abcdefghijklmnopqrstuv' AS password_hash,
-    'Patient' AS user_type,
+    decode('736565642d70617373776f7264', 'hex') AS password,
+    'Patient'::user_type_enum AS user_type,
+    first_name,
+    last_name,
+    lower(first_name || '.' || last_name || g::text || '@pakartech.com') AS email,
     TRUE AS is_active,
     registration_date::timestamp AS created_at
   FROM gen
   ON CONFLICT (username) DO NOTHING
-  RETURNING id, username
+  RETURNING user_id, username
 )
 INSERT INTO app.patient (
   user_id,
+  doctor_id,
   phone_num,
   birth_date,
   gender,
   address,
   emergency_contact_name,
-  emergency_contact_phone,
+  emergency_phone,
   created_at,
   updated_at
 )
 SELECT
-  ui.id AS user_id,
-  gen.phone_num::text AS phone_num,
-  (CURRENT_DATE - ((gen.age_years * 365) + floor(random() * 365)::int) * INTERVAL '1 day')::date AS birth_date,
+  ui.user_id,
+  NULL AS doctor_id,
+  gen.phone_num,
+  (CURRENT_DATE - ((gen.age_years * 365) + floor(random() * 365)::int) * INTERVAL '1 day')::timestamp AS birth_date,
   CASE (gen.g % 3)
-    WHEN 0 THEN 'Male'
-    WHEN 1 THEN 'Female'
-    ELSE 'Other'
+    WHEN 0 THEN 'Male'::gender_enum
+    WHEN 1 THEN 'Female'::gender_enum
+    ELSE 'Other'::gender_enum
   END AS gender,
   (gen.address_line1 || COALESCE(' ' || gen.address_line2, '') || ', ' || gen.city || ', ' || gen.state || ' ' || gen.postal_code) AS address,
   gen.emergency_contact_name,
-  gen.emergency_phone::text AS emergency_contact_phone,
+  gen.emergency_phone,
   gen.registration_date::timestamp AS created_at,
   gen.registration_date::timestamp AS updated_at
 FROM gen
-JOIN user_inserts ui ON ui.username = lower(gen.first_name || '.' || gen.last_name || gen.g::text);
+JOIN user_inserts ui ON ui.username = lower(gen.first_name || '.' || gen.last_name || gen.g::text)
+ON CONFLICT (user_id) DO NOTHING;
 
 COMMIT;
 
