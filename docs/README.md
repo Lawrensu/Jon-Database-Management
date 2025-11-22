@@ -197,7 +197,7 @@ cat database/backups/latest_backup.sql | \
 
 # 3. Verify data
 docker compose exec postgres psql -U jondb_admin -d test_restore \
-  -c "SELECT COUNT(*) FROM app.patients;"
+   -c "SELECT COUNT(*) FROM app.patient;"
 
 # 4. Drop test database
 docker compose exec postgres dropdb -U jondb_admin test_restore
@@ -255,9 +255,10 @@ echo "📊 Database Size:"
 docker compose exec postgres psql -U jondb_admin -d jon_database_dev -c "
 SELECT 
     pg_size_pretty(pg_database_size('jon_database_dev')) AS database_size,
-    (SELECT COUNT(*) FROM app.patients) AS patient_count,
-    (SELECT COUNT(*) FROM app.doctors) AS doctor_count,
-    (SELECT COUNT(*) FROM app.appointments) AS appointment_count;
+   (SELECT COUNT(*) FROM app.patient) AS patient_count,
+   (SELECT COUNT(*) FROM app.patient) AS patient_count,
+   (SELECT COUNT(*) FROM app.doctor) AS doctor_count,
+   -- (SELECT COUNT(*) FROM app.appointments) AS appointment_count;  -- removed: appointments not in canonical ERD
 "
 
 # Check active connections

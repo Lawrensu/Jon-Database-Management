@@ -40,7 +40,7 @@ npm run db:connect
 \dt app.*
 
 # Describe a table
-\d app.patients
+\d app.patient
 ```
 
 ### Phase 2: Creating Patient Data 
@@ -76,7 +76,7 @@ npm run db:connect
 SET search_path TO app, public;
 
 -- Insert patients with realistic Malaysian data
-INSERT INTO app.patients (
+INSERT INTO app.patient (
     patient_number, first_name, middle_name, last_name, 
     date_of_birth, gender,
     email, phone_primary, phone_secondary,
@@ -166,21 +166,23 @@ Note about current seed implementation
 
 ```sql
 -- First, departments must exist
-INSERT INTO app.departments (name, code, description, phone, email, location, is_active) VALUES
-('Cardiology', 'CARD', 'Heart and cardiovascular specialists', '+60-3-2345-1001', 'cardiology@pakartech.com', 'Block A, Level 2', TRUE),
-('Pediatrics', 'PEDI', 'Child and adolescent healthcare', '+60-3-2345-1002', 'pediatrics@pakartech.com', 'Block B, Level 1', TRUE),
-('General Practice', 'GP', 'General medical consultation', '+60-3-2345-1004', 'gp@pakartech.com', 'Block C, Level 1', TRUE)
-ON CONFLICT (code) DO NOTHING;
+-- INSERT INTO app.departments (name, code, description, phone, email, location, is_active) VALUES
+-- ('Cardiology', 'CARD', 'Heart and cardiovascular specialists', '+60-3-2345-1001', 'cardiology@pakartech.com', 'Block A, Level 2', TRUE),
+-- ('Pediatrics', 'PEDI', 'Child and adolescent healthcare', '+60-3-2345-1002', 'pediatrics@pakartech.com', 'Block B, Level 1', TRUE),
+-- ('General Practice', 'GP', 'General medical consultation', '+60-3-2345-1004', 'gp@pakartech.com', 'Block C, Level 1', TRUE)
+-- ON CONFLICT (code) DO NOTHING;
+-- NOTE: `app.departments` removed to match canonical ERD. Department information is represented differently in the core schema or stored on doctor records.
 
 -- Then specializations
-INSERT INTO app.specializations (name, code, description, requires_certification, years_training_required) VALUES
-('General Practitioner', 'GP', 'General medical practice', TRUE, 3, TRUE),
-('Cardiologist', 'CARD', 'Heart specialist', TRUE, 5, TRUE),
-('Pediatrician', 'PEDI', 'Children''s doctor', TRUE, 4, TRUE)
-ON CONFLICT (code) DO NOTHING;
+-- INSERT INTO app.specializations (name, code, description, requires_certification, years_training_required) VALUES
+-- ('General Practitioner', 'GP', 'General medical practice', TRUE, 3, TRUE),
+-- ('Cardiologist', 'CARD', 'Heart specialist', TRUE, 5, TRUE),
+-- ('Pediatrician', 'PEDI', 'Children''s doctor', TRUE, 4, TRUE)
+-- ON CONFLICT (code) DO NOTHING;
+-- NOTE: `app.specializations` removed to match canonical ERD. Specialization is stored as a string in `app.doctor.specialization` per core schema.
 
 -- Then doctors
-INSERT INTO app.doctors (
+INSERT INTO app.doctor (
     doctor_number, license_number,
     first_name, middle_name, last_name,
     department_id, specialization_id,
@@ -193,8 +195,8 @@ INSERT INTO app.doctors (
 (
     'DR2024001', 'MMC-CARD-12345',
     'Rajesh', 'Kumar', 'Menon',
-    (SELECT id FROM app.departments WHERE code = 'CARD'),
-    (SELECT id FROM app.specializations WHERE code = 'CARD'),
+    NULL,  -- department table removed in canonical ERD
+    NULL,  -- specialization table removed in canonical ERD (specialization stored on app.doctor)
     'MBBS, MD (Cardiology), Fellowship in Interventional Cardiology',
     15,
     'dr.rajesh.menon@pakartech.com',
@@ -208,8 +210,8 @@ INSERT INTO app.doctors (
 (
     'DR2024002', 'MMC-PEDI-34567',
     'Amira', 'binti', 'Hassan',
-    (SELECT id FROM app.departments WHERE code = 'PEDI'),
-    (SELECT id FROM app.specializations WHERE code = 'PEDI'),
+    NULL,  -- department table removed in canonical ERD
+    NULL,  -- specialization table removed in canonical ERD
     'MBBS, MD (Pediatrics), Fellowship in Neonatology',
     12,
     'dr.amira.hassan@pakartech.com',
@@ -230,7 +232,8 @@ Note about current doctor seed implementation
 
 ```sql
 -- Full-time doctors work Monday-Friday, 9 AM - 5 PM
-INSERT INTO app.doctor_schedules (doctor_id, day_of_week, start_time, end_time, break_start_time, break_end_time, is_active)
+-- INSERT INTO app.doctor_schedules (doctor_id, day_of_week, start_time, end_time, break_start_time, break_end_time, is_active)
+-- NOTE: `app.doctor_schedules` removed to match canonical ERD. Scheduling should be handled by application layer or future schema extension.
 SELECT 
     d.id,
     dow.day,
@@ -239,7 +242,7 @@ SELECT
     '13:00:00'::TIME,  -- Lunch break
     '14:00:00'::TIME,
     TRUE
-FROM app.doctors d
+FROM app.doctor d
 CROSS JOIN (
     SELECT 1 AS day UNION ALL  -- Monday
     SELECT 2 UNION ALL          -- Tuesday
@@ -248,7 +251,7 @@ CROSS JOIN (
     SELECT 5                    -- Friday
 ) dow
 WHERE d.employment_type = 'Full-time'
-ON CONFLICT DO NOTHING;
+-- ON CONFLICT DO NOTHING;  -- commented out: doctor_schedules removed in ERD
 ```
 
 ### Phase 4: Creating Appointment Data (yes)
@@ -287,7 +290,8 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Past completed appointments (30-120 days ago)
-INSERT INTO app.appointments (
+-- INSERT INTO app.appointments (
+-- NOTE: `app.appointments` removed to match canonical ERD. Appointment data is outside the current core schema and has been commented out.
     appointment_number, patient_id, doctor_id, department_id,
     appointment_date, appointment_time, duration_minutes,
     status_id, reason_for_visit, symptoms, doctor_notes,
@@ -295,13 +299,13 @@ INSERT INTO app.appointments (
 ) VALUES
 (
     generate_appointment_number(1),
-    (SELECT id FROM app.patients WHERE patient_number = 'PT2024001'),
-    (SELECT id FROM app.doctors WHERE doctor_number = 'DR2024001'),
-    (SELECT id FROM app.departments WHERE code = 'CARD'),
+    (SELECT id FROM app.patient WHERE patient_number = 'PT2024001'),
+    (SELECT id FROM app.doctor WHERE doctor_number = 'DR2024001'),
+    -- (SELECT id FROM app.departments WHERE code = 'CARD'), -- removed (departments not in ERD)
     CURRENT_DATE - 45,  -- 45 days ago
     '10:00:00',
     45,
-    (SELECT id FROM app.appointment_statuses WHERE status_name = 'Completed'),
+    -- (SELECT id FROM app.appointment_statuses WHERE status_name = 'Completed'), -- removed (appointment_statuses not in ERD)
     'Chest pain and irregular heartbeat',
     'Experiencing chest discomfort for past 2 weeks, occasional palpitations',
     'ECG shows slight abnormality. Prescribed beta-blockers. Follow-up in 2 weeks.',
@@ -311,7 +315,8 @@ INSERT INTO app.appointments (
 );
 
 -- Upcoming appointments (next 7 days)
-INSERT INTO app.appointments (
+-- INSERT INTO app.appointments (
+-- NOTE: `app.appointments` removed to match canonical ERD. Appointment data is outside the current core schema and has been commented out.
     appointment_number, patient_id, doctor_id, department_id,
     appointment_date, appointment_time, duration_minutes,
     status_id, reason_for_visit,
@@ -319,13 +324,13 @@ INSERT INTO app.appointments (
 ) VALUES
 (
     generate_appointment_number(50),
-    (SELECT id FROM app.patients WHERE patient_number = 'PT2024002'),
-    (SELECT id FROM app.doctors WHERE doctor_number = 'DR2024007'),
-    (SELECT id FROM app.departments WHERE code = 'GP'),
+    (SELECT id FROM app.patient WHERE patient_number = 'PT2024002'),
+    (SELECT id FROM app.doctor WHERE doctor_number = 'DR2024007'),
+    -- (SELECT id FROM app.departments WHERE code = 'GP'), -- removed (departments not in ERD)
     CURRENT_DATE + 2,  -- 2 days from now
     '09:00:00',
     30,
-    (SELECT id FROM app.appointment_statuses WHERE status_name = 'Confirmed'),
+    -- (SELECT id FROM app.appointment_statuses WHERE status_name = 'Confirmed'), -- removed (appointment_statuses not in ERD)
     'Annual physical examination',
     150.00,
     'Pending'
@@ -377,15 +382,15 @@ npm run db:connect
 
 # Count records in each table
 SELECT 
-    'Patients' AS table_name, COUNT(*) AS records FROM app.patients
+    'Patients' AS table_name, COUNT(*) AS records FROM app.patient
 UNION ALL
-SELECT 'Doctors', COUNT(*) FROM app.doctors
+SELECT 'Doctors', COUNT(*) FROM app.doctor
 UNION ALL
-SELECT 'Appointments', COUNT(*) FROM app.appointments;
+-- SELECT 'Appointments', COUNT(*) FROM app.appointments;  -- removed: appointments not in ERD
 
 # Check for data integrity issues
-SELECT * FROM app.appointments a 
-LEFT JOIN app.patients p ON a.patient_id = p.id 
+-- SELECT * FROM app.appointments a  -- removed: appointments not in ERD
+LEFT JOIN app.patient p ON a.patient_id = p.id 
 WHERE p.id IS NULL;  -- Should return 0 rows
 ```
 
@@ -443,13 +448,14 @@ WHERE p.id IS NULL;  -- Should return 0 rows
 
 ```sql
 -- Instead of hardcoding UUIDs, use SELECT
-INSERT INTO app.appointments (
+-- INSERT INTO app.appointments (
+-- NOTE: `app.appointments` removed to match canonical ERD. Appointment data is outside the current core schema and has been commented out.
     patient_id,
     doctor_id,
     -- other fields...
 ) VALUES (
-    (SELECT id FROM app.patients WHERE patient_number = 'PT2024001'),
-    (SELECT id FROM app.doctors WHERE doctor_number = 'DR2024001'),
+    (SELECT id FROM app.patient WHERE patient_number = 'PT2024001'),
+    (SELECT id FROM app.doctor WHERE doctor_number = 'DR2024001'),
     -- other values...
 );
 ```
@@ -458,15 +464,16 @@ INSERT INTO app.appointments (
 
 ```sql
 -- Generate multiple records at once
-INSERT INTO app.appointments (appointment_number, patient_id, doctor_id, appointment_date)
+-- INSERT INTO app.appointments (appointment_number, patient_id, doctor_id, appointment_date)
+-- NOTE: `app.appointments` removed to match canonical ERD. This example insert is commented out.
 SELECT 
     'APT202400' || ROW_NUMBER() OVER (),
     p.id,
     d.id,
     CURRENT_DATE + (random() * 30)::INTEGER
-FROM (SELECT * FROM app.patients LIMIT 20) p
+FROM (SELECT * FROM app.patient LIMIT 20) p
 CROSS JOIN LATERAL (
-    SELECT * FROM app.doctors 
+    SELECT * FROM app.doctor 
     WHERE is_accepting_patients = TRUE 
     ORDER BY RANDOM() 
     LIMIT 1
@@ -477,9 +484,10 @@ CROSS JOIN LATERAL (
 
 ```sql
 -- Prevent errors if data already exists
-INSERT INTO app.departments (name, code, description)
-VALUES ('Cardiology', 'CARD', 'Heart specialists')
-ON CONFLICT (code) DO NOTHING;
+-- INSERT INTO app.departments (name, code, description)
+-- VALUES ('Cardiology', 'CARD', 'Heart specialists')
+-- ON CONFLICT (code) DO NOTHING;
+-- NOTE: `app.departments` examples commented out to follow canonical ERD (departments table removed).
 
 -- Or update existing data
 ON CONFLICT (code) DO UPDATE 
@@ -591,9 +599,7 @@ Create `docs/seeds-documentation.md`:
 Total records created:
 - Patients: 50+
 - Doctors: 20+
-- Appointments: 100+
-- Departments: 8
-- Specializations: 8
+- NOTE: Appointments, Departments and Specializations mentioned here are part of previous designs but are not present in the canonical ERD used by the core schema. If you need them, add them to the schema or manage via application layer.
 
 ## Data Sources
 - Malaysian names from [source]
