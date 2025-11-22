@@ -34,31 +34,29 @@ WITH doctor_data AS (
     ('Nur', 'Laila', 'dr.nur.laila@pakartech.com', 'Female', 60122345020, 20, 'MBBS, MMed (Pediatrics)', 'Pediatrician', '2019-02-01'::timestamp)
   ) AS t(first_name, last_name, email, gender, phone_num, license_num, qualification, specialisation, created_at)
 ),
-doctor_data_with_id AS (
-  SELECT 
-    'D' || LPAD(license_num::text, 6, '0') AS user_id,
-    *
-  FROM doctor_data
-),
 user_inserts AS (
   INSERT INTO app.user_account (
-    user_id,
     username, 
-    password_hash, 
+    password, 
     user_type, 
+    first_name, 
+    last_name, 
+    email, 
     is_active, 
     created_at
   )
   SELECT
-    user_id,
     LOWER(REPLACE(email, '@pakartech.com', '')) AS username,
-    '$2a$10$abcdefghijklmnopqrstuv' AS password_hash,
-    'Doctor' AS user_type,
+    decode('736565642d70617373776f7264', 'hex') AS password,
+    'Doctor'::user_type_enum AS user_type,
+    first_name,
+    last_name,
+    email,
     TRUE AS is_active,
     created_at
-  FROM doctor_data_with_id
+  FROM doctor_data
   ON CONFLICT (username) DO NOTHING
-  RETURNING id, username
+  RETURNING user_id, email
 )
 -- ============================================================================
 -- STEP 2: INSERT DOCTORS
@@ -69,23 +67,24 @@ INSERT INTO app.doctor (
   license_num,
   license_exp,
   gender,
-  specialization,
+  specialisation,
   qualification,
   created_at,
   updated_at
 )
 SELECT
-  ui.id AS user_id,
-  dd.phone_num::text AS phone_num,
-  dd.license_num::text AS license_num,
+  ui.user_id,
+  dd.phone_num,
+  dd.license_num,
   (CURRENT_DATE + INTERVAL '2 years' + (dd.license_num || ' days')::INTERVAL)::timestamp AS license_exp,
-  dd.gender,
-  dd.specialisation AS specialization,
+  dd.gender::gender_enum,
+  dd.specialisation,
   dd.qualification,
   dd.created_at,
   dd.created_at AS updated_at
-FROM doctor_data_with_id dd
-JOIN user_inserts ui ON ui.username = LOWER(REPLACE(dd.email, '@pakartech.com', ''));
+FROM doctor_data dd
+JOIN user_inserts ui ON ui.email = dd.email
+ON CONFLICT (user_id) DO NOTHING;
 
 COMMIT;
 
