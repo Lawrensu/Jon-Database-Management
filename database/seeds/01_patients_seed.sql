@@ -101,33 +101,33 @@ gen AS (
 -- Columns present: patient_id, user_id, phone_num, birth_date, gender, address,
 -- emergency_contact_name, emergency_contact_phone, created_at, updated_at
 -- Create minimal user_account rows for patients so names/emails are preserved
-INSERT INTO app.user_account (user_id, username, password_hash, user_type, is_active, created_at)
+-- Insert user_account rows, match schema: do not insert into SERIAL PK, use password (BYTEA), add missing columns
+INSERT INTO app.user_account (username, password, user_type, is_active, created_at)
 SELECT
-  'USER' || to_char(CURRENT_DATE,'YYYY') || LPAD(g::text,4,'0') AS user_id,
   lower(first_name || '.' || last_name || '@pakartech.com') AS username,
-  'seed-password-hash' AS password_hash,
+  decode('736565642d70617373776f7264','hex') AS password, -- 'seed-password' as BYTEA
   'Patient' AS user_type,
   TRUE AS is_active,
   registration_date::timestamp AT TIME ZONE 'UTC' AS created_at
 FROM gen
-ON CONFLICT (user_id) DO NOTHING;
+ON CONFLICT (username) DO NOTHING;
 
 INSERT INTO app.patient (
-  patient_id, user_id, phone_num, birth_date, gender, address,
-  emergency_contact_name, emergency_contact_phone, created_at
+  patient_id, user_account_id, phone_num, birth_date, gender, address,
+  emergency_contact, emergency_phone, created_at
 )
 SELECT
   'PT' || to_char(CURRENT_DATE,'YYYY') || LPAD(g::text,4,'0') AS patient_id,
-  'USER' || to_char(CURRENT_DATE,'YYYY') || LPAD(g::text,4,'0') AS user_id,
+  (SELECT id FROM app.user_account WHERE username = lower(first_name || '.' || last_name || '@pakartech.com')) AS user_account_id,
   phone_primary AS phone_num,
   (CURRENT_DATE - ((age_years * 365) + floor(random() * 365)::int) * INTERVAL '1 day')::date AS birth_date,
   (CASE WHEN (g % 3) = 1 THEN 'Male' WHEN (g % 3) = 2 THEN 'Female' ELSE 'Other' END) AS gender,
   (address_line1 || COALESCE(' ' || address_line2, '') || ', ' || city || ', ' || state || ' ' || postal_code) AS address,
-  emergency_contact_name,
-  emergency_contact_phone,
+  emergency_contact_name AS emergency_contact,
+  emergency_contact_phone AS emergency_phone,
   registration_date::timestamp AT TIME ZONE 'UTC' AS created_at
 FROM gen
 ON CONFLICT (patient_id) DO NOTHING;
 
 -- quick verification message (select row count from inserted set is environment-specific)
-SELECT '01_patients_seed: completed (up to 200 records inserted, duplicates skipped, user linkage fixed).' AS info;
+SELECT '01_patients_seed: completed (up to 200 records inserted, duplicates skipped, columns and linkage fixed).' AS info;
