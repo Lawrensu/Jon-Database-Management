@@ -1,51 +1,52 @@
--- PAKAR Tech Healthcare - Patient Workflow Queries
+-- PAKAR Tech Healthcare - Patient Use Case Queries
 -- COS 20031 Database Design Project
--- Patient can: view info, report symptoms, check schedule, log medications
 
 SET search_path TO app, public;
 
-BEGIN;
+\echo '========================================'
+\echo '🧑‍⚕️ Patient Use Case Queries'
+\echo '========================================'
 
 -- ============================================================================
--- STEP 1: Patient views their assigned doctor(s)
+-- STEP 1: Patient views assigned doctor
 -- ============================================================================
-\echo '============================================'
-\echo '👨‍⚕️ STEP 1: My Assigned Doctor(s)'
-\echo '============================================'
+
+\echo ''
+\echo 'STEP 1: Patient Assigned Doctor'
+\echo '----------------------------------------'
 
 SELECT 
     d.doctor_id,
     u.first_name || ' ' || u.last_name AS doctor_name,
     u.email AS doctor_email,
+    d.phone_num AS doctor_phone,
     d.specialisation,
-    d.phone_num,
-    d.clinical_inst AS clinic_address,
-    pd.assigned_at
-FROM app.patient_doctor pd
-JOIN app.doctor d ON pd.doctor_id = d.doctor_id
+    d.qualification,
+    d.created_at AS assigned_date
+FROM app.patient p
+JOIN app.doctor d ON p.doctor_id = d.doctor_id
 JOIN app.user_account u ON d.user_id = u.user_id
-WHERE pd.patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
-ORDER BY pd.assigned_at DESC;
+WHERE p.patient_id = (SELECT patient_id FROM app.patient LIMIT 1);
 
 -- ============================================================================
--- STEP 2: Patient views their symptoms and conditions
+-- STEP 2: Patient views their symptoms
 -- ============================================================================
+
 \echo ''
-\echo '============================================'
-\echo '🩺 STEP 2: My Symptoms & Conditions'
-\echo '============================================'
+\echo 'STEP 2: Patient Symptoms'
+\echo '----------------------------------------'
 
 SELECT 
-    ps.patient_symptom_id,
-    c.condition_name,
+    c.condition_name AS symptom,
+    c.condition_desc AS description,
     ps.severity,
-    ps.notes,
-    ps.date_reported::DATE AS reported_date,
+    ps.date_reported,
+    ps.date_resolved,
     CASE 
-        WHEN ps.date_resolved IS NOT NULL THEN 'Resolved'
-        ELSE 'Active'
+        WHEN ps.date_resolved IS NULL THEN 'Ongoing'
+        ELSE 'Resolved'
     END AS status,
-    ps.date_resolved::DATE AS resolved_date
+    ps.notes
 FROM app.patient_symptom ps
 JOIN app.symptom s ON ps.symptom_id = s.symptom_id
 JOIN app.condition c ON s.condition_id = c.condition_id
@@ -53,280 +54,225 @@ WHERE ps.patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
 ORDER BY ps.date_reported DESC;
 
 -- ============================================================================
--- STEP 3: Patient reports a new symptom (from symptom table)
+-- STEP 3: Patient views prescriptions
 -- ============================================================================
+
 \echo ''
-\echo '============================================'
-\echo '📝 STEP 3: Report New Symptom'
-\echo '============================================'
-
--- Show available symptoms to choose from
-\echo 'Available symptoms in system:'
-SELECT 
-    s.symptom_id,
-    c.condition_name AS related_condition
-FROM app.symptom s
-JOIN app.condition c ON s.condition_id = c.condition_id
-ORDER BY c.condition_name
-LIMIT 10;
-
--- Patient reports a symptom (pick symptom_id from above list)
-INSERT INTO app.patient_symptom (patient_id, symptom_id, date_reported, severity, notes)
-SELECT 
-    (SELECT patient_id FROM app.patient LIMIT 1),
-    (SELECT symptom_id FROM app.symptom WHERE symptom_id = 2 LIMIT 1), -- Example: symptom_id = 2
-    NOW(),
-    'Mild',
-    'Started experiencing this symptom today'
-WHERE EXISTS (SELECT 1 FROM app.patient)
-  AND EXISTS (SELECT 1 FROM app.symptom WHERE symptom_id = 2)
-ON CONFLICT DO NOTHING;
-
-\echo '✅ New symptom reported successfully'
-
--- ============================================================================
--- STEP 4: Patient views their medication schedule
--- ============================================================================
-\echo ''
-\echo '============================================'
-\echo '💊 STEP 4: My Medication Schedule'
-\echo '============================================'
+\echo 'STEP 3: Patient Prescriptions'
+\echo '----------------------------------------'
 
 SELECT 
-    ms.medication_schedule_id,
+    pr.prescription_id,
     m.med_name,
     m.med_brand_name,
-    pv.titration || ' ' || pv.titration_unit AS dose,
-    ms.med_timing,
-    ms.frequency_times_per_day || ' times per day' AS frequency,
-    'Every ' || ms.frequency_interval_hours || ' hours' AS interval,
-    ms.duration || ' ' || ms.duration_unit AS duration,
-    pv.start_date::DATE AS start_date,
-    pv.end_date::DATE AS end_date,
-    CASE 
-        WHEN pv.end_date < CURRENT_TIMESTAMP THEN '✅ Completed'
-        WHEN pv.start_date > CURRENT_TIMESTAMP THEN '⏰ Upcoming'
-        ELSE '🔄 Active'
-    END AS schedule_status,
-    u.first_name || ' ' || u.last_name AS prescribed_by
-FROM app.medication_schedule ms
-JOIN app.prescription_version pv ON ms.prescription_version_id = pv.prescription_version_id
-JOIN app.prescription p ON pv.prescription_id = p.prescription_id
+    pv.titration || ' ' || pv.titration_unit AS dosage,
+    pr.created_date,
+    pr.status,
+    u_doctor.first_name || ' ' || u_doctor.last_name AS prescribed_by,
+    pr.doctor_note
+FROM app.prescription pr
+JOIN app.prescription_version pv ON pr.prescription_id = pv.prescription_id
 JOIN app.medication m ON pv.medication_id = m.medication_id
-JOIN app.doctor d ON p.doctor_id = d.doctor_id
-JOIN app.user_account u ON d.user_id = u.user_id
-WHERE p.patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
-ORDER BY pv.start_date DESC, ms.medication_schedule_id;
+JOIN app.doctor d ON pr.doctor_id = d.doctor_id
+JOIN app.user_account u_doctor ON d.user_id = u_doctor.user_id
+WHERE pr.patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
+  AND pv.end_date IS NULL  -- Current version only
+ORDER BY pr.created_date DESC;
 
 -- ============================================================================
--- STEP 5: Patient views upcoming reminders
+-- STEP 4: Patient views medication side effects
 -- ============================================================================
+
 \echo ''
-\echo '============================================'
-\echo '⏰ STEP 5: My Upcoming Reminders'
-\echo '============================================'
+\echo 'STEP 4: Medication Side Effects'
+\echo '----------------------------------------'
 
 SELECT 
-    r.reminder_id,
-    r.schedule::DATE AS reminder_date,
-    r.schedule::TIME AS reminder_time,
-    r.message,
     m.med_name,
-    pv.titration || ' ' || pv.titration_unit AS dose,
-    ms.med_timing
-FROM app.reminder r
-JOIN app.medication_schedule ms ON r.medication_schedule_id = ms.medication_schedule_id
-JOIN app.prescription_version pv ON ms.prescription_version_id = pv.prescription_version_id
+    m.med_brand_name,
+    c.condition_name AS side_effect,
+    c.condition_desc AS description,
+    mse.frequency
+FROM app.prescription pr
+JOIN app.prescription_version pv ON pr.prescription_id = pv.prescription_id
 JOIN app.medication m ON pv.medication_id = m.medication_id
-WHERE r.patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
-  AND r.schedule >= NOW()
-ORDER BY r.schedule ASC
+JOIN app.medication_side_effect mse ON m.medication_id = mse.medication_id
+JOIN app.side_effect se ON mse.side_effect_id = se.side_effect_id
+JOIN app.condition c ON se.condition_id = c.condition_id
+WHERE pr.patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
+  AND pr.status = 'Active'
+  AND pv.end_date IS NULL
+ORDER BY m.med_name, mse.frequency;
+
+-- ============================================================================
+-- STEP 5: Patient views medication schedule
+-- ============================================================================
+
+\echo ''
+\echo 'STEP 5: Medication Schedule'
+\echo '----------------------------------------'
+
+SELECT 
+    m.med_name,
+    pv.titration || ' ' || pv.titration_unit AS dosage,  -- ✅ Get from prescription_version
+    ms.frequency_times_per_day || ' times per day' AS frequency,  -- ✅ Fixed column name
+    ms.med_timing AS timing,
+    pv.start_date,  -- ✅ Get from prescription_version
+    pv.end_date,  -- ✅ Get from prescription_version
+    CASE 
+        WHEN pv.end_date IS NULL THEN 'Ongoing'
+        WHEN pv.end_date > NOW() THEN 'Active'
+        ELSE 'Completed'
+    END AS status
+FROM app.medication_schedule ms
+JOIN app.prescription_version pv ON ms.prescription_version_id = pv.prescription_version_id  -- ✅ Get dosage/dates from here
+JOIN app.prescription pr ON pv.prescription_id = pr.prescription_id  -- ✅ Get patient_id from here
+JOIN app.medication m ON pv.medication_id = m.medication_id  -- ✅ Get med_name from here
+WHERE pr.patient_id = (SELECT patient_id FROM app.patient LIMIT 1)  -- ✅ Filter by patient
+ORDER BY pv.start_date DESC
 LIMIT 10;
 
 -- ============================================================================
--- STEP 6: Patient views their medication log history
+-- AUTO-UPDATE: Mark missed medications
 -- ============================================================================
+
 \echo ''
-\echo '============================================'
-\echo '📋 STEP 6: My Medication Log History'
-\echo '============================================'
+\echo '🔄 Auto-updating missed medications...'
+
+-- Call the function to mark missed meds
+SELECT app.mark_missed_medications();
+
+-- ============================================================================
+-- STEP 6: Patient medication adherence log
+-- ============================================================================
+
+\echo ''
+\echo 'STEP 6: Medication Adherence Log'
+\echo '----------------------------------------'
 
 SELECT 
-    ml.medication_log_id,
-    ml.scheduled_time::DATE AS log_date,                    -- ✅ Fixed: log_time → scheduled_time
-    ml.scheduled_time::TIME AS scheduled_time,
-    ml.actual_taken_time::TIME AS actual_taken_time,
     m.med_name,
-    ml.status,
-    ml.notes,
-    CASE 
-        WHEN ml.status = 'Taken' THEN '✅'
-        WHEN ml.status = 'Missed' THEN '❌'
-        WHEN ml.status = 'Skipped' THEN '⏭️'
-        ELSE '❓'
-    END AS status_icon
+    ml.scheduled_time,
+    ml.actual_taken_time,
+    ml.status,  -- ✅ Show actual ENUM value (Taken/Missed/Skipped)
+    CASE   -- ✅ Separate column for display text
+        WHEN ml.status = 'Taken' AND ml.actual_taken_time <= ml.scheduled_time + INTERVAL '1 hour'
+        THEN '✅ On Time'
+        WHEN ml.status = 'Taken' THEN '⏰ Late'
+        WHEN ml.status = 'Missed' THEN '❌ Missed'
+        WHEN ml.status = 'Skipped' THEN '⏭️ Skipped'
+        ELSE '❓ Unknown'
+    END AS adherence_status,  -- ✅ New display column
+    ml.notes
 FROM app.medication_log ml
 JOIN app.medication m ON ml.medication_id = m.medication_id
 WHERE ml.patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
-ORDER BY ml.scheduled_time DESC                              -- ✅ Fixed: log_time → scheduled_time
-LIMIT 20;
+ORDER BY ml.scheduled_time DESC
+LIMIT 10;
 
 -- ============================================================================
--- STEP 7: Patient logs medication intake (Update status)
+-- STEP 7: Patient updates medication log status
 -- ============================================================================
-\echo ''
-\echo '============================================'
-\echo '✏️ STEP 7: Log Medication Intake'
-\echo '============================================'
-
--- Option A: Log new medication as "Taken"
-INSERT INTO app.medication_log (
-    patient_id,
-    medication_id,
-    medication_schedule_id,
-    scheduled_time,
-    actual_taken_time,
-    status,
-    notes
-)
-SELECT 
-    (SELECT patient_id FROM app.patient LIMIT 1),
-    (SELECT medication_id FROM app.medication LIMIT 1),
-    (SELECT medication_schedule_id FROM app.medication_schedule LIMIT 1),
-    NOW(),
-    NOW(),
-    'Taken',
-    'Took medication with breakfast as scheduled'
-WHERE EXISTS (SELECT 1 FROM app.patient)
-    AND EXISTS (SELECT 1 FROM app.medication)
-    AND EXISTS (SELECT 1 FROM app.medication_schedule)
-ON CONFLICT DO NOTHING;
-
-\echo '✅ Medication logged as TAKEN'
-
--- Option B: Update existing log status (if patient forgot to log earlier)
--- Example: Update most recent "Missed" to "Taken" (late logging)
-UPDATE app.medication_log
-SET 
-    status = 'Taken',
-    actual_taken_time = NOW(),
-    notes = 'Logged late - took medication but forgot to record it'
-    -- ❌ REMOVED: log_time = NOW() (column doesn't exist)
-WHERE medication_log_id = (
-    SELECT medication_log_id 
-    FROM app.medication_log 
-    WHERE patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
-        AND status = 'Missed'
-    ORDER BY scheduled_time DESC 
-    LIMIT 1
-)
-RETURNING medication_log_id, status, notes;
-
-\echo '✅ Medication log status updated'
-
--- ============================================================================
--- STEP 8: Patient manually marks medication as "Skipped"
--- ============================================================================
-\echo ''
-\echo '============================================'
-\echo '⏭️ STEP 8: Mark Medication as Skipped'
-\echo '============================================'
-
-INSERT INTO app.medication_log (
-    patient_id,
-    medication_id,
-    medication_schedule_id,
-    scheduled_time,
-    actual_taken_time,
-    status,
-    notes
-)
-SELECT 
-    (SELECT patient_id FROM app.patient LIMIT 1),
-    (SELECT medication_id FROM app.medication LIMIT 1),
-    (SELECT medication_schedule_id FROM app.medication_schedule LIMIT 1),
-    NOW() + INTERVAL '12 hours', -- Next scheduled dose
-    NULL, -- Not taken
-    'Skipped',
-    'Will take next dose - feeling better today'
-WHERE EXISTS (SELECT 1 FROM app.patient)
-  AND EXISTS (SELECT 1 FROM app.medication)
-  AND EXISTS (SELECT 1 FROM app.medication_schedule)
-ON CONFLICT DO NOTHING;
-
-\echo '✅ Medication marked as SKIPPED'
-
-COMMIT;
-
--- ============================================================================
--- SUMMARY REPORT
--- ============================================================================
-\echo ''
-\echo '============================================'
-\echo '📊 Patient Workflow Summary'
-\echo '============================================'
-
-SELECT 
-    'My Assigned Doctors' AS metric,
-    COUNT(*)::text AS value
-FROM app.patient_doctor
-WHERE patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
-UNION ALL
-SELECT 
-    'My Active Symptoms',
-    COUNT(*)::text
-FROM app.patient_symptom
-WHERE patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
-  AND date_resolved IS NULL
-UNION ALL
-SELECT 
-    'My Total Symptoms Reported',
-    COUNT(*)::text
-FROM app.patient_symptom
-WHERE patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
-UNION ALL
-SELECT 
-    'My Active Medication Schedules',
-    COUNT(*)::text
-FROM app.medication_schedule ms
-JOIN app.prescription_version pv ON ms.prescription_version_id = pv.prescription_version_id
-JOIN app.prescription p ON pv.prescription_id = p.prescription_id
-WHERE p.patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
-  AND pv.end_date >= CURRENT_TIMESTAMP
-UNION ALL
-SELECT 
-    'My Upcoming Reminders',
-    COUNT(*)::text
-FROM app.reminder
-WHERE patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
-  AND schedule >= NOW()
-UNION ALL
-SELECT 
-    'My Total Medication Logs',
-    COUNT(*)::text
-FROM app.medication_log
-WHERE patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
-UNION ALL
-SELECT 
-    'Medications Taken',
-    COUNT(*)::text
-FROM app.medication_log
-WHERE patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
-  AND status = 'Taken'
-UNION ALL
-SELECT 
-    'Medications Missed',
-    COUNT(*)::text
-FROM app.medication_log
-WHERE patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
-  AND status = 'Missed'
-UNION ALL
-SELECT 
-    'Medications Skipped',
-    COUNT(*)::text
-FROM app.medication_log
-WHERE patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
-  AND status = 'Skipped';
 
 \echo ''
-\echo '✅ Patient workflow test completed successfully!'
+\echo 'STEP 7: Patient Updates Medication Log'
+\echo '----------------------------------------'
+
+DO $$
+DECLARE
+    v_log_id INT;
+    v_patient_id INT;
+BEGIN
+    -- Get first patient
+    SELECT patient_id INTO v_patient_id FROM app.patient LIMIT 1;
+    
+    -- Get first 'Missed' log entry for this patient
+    SELECT medication_log_id INTO v_log_id
+    FROM app.medication_log
+    WHERE patient_id = v_patient_id
+      AND status = 'Missed'
+    LIMIT 1;
+    
+    IF v_log_id IS NOT NULL THEN
+        -- Update status to 'Taken'
+        UPDATE app.medication_log
+        SET 
+            status = 'Taken',
+            actual_taken_time = NOW(),
+            notes = 'Marked as taken by patient'
+        WHERE medication_log_id = v_log_id;
+        
+        RAISE NOTICE '✅ Updated log ID % to status: Taken', v_log_id;
+    ELSE
+        RAISE NOTICE '❌ No missed logs found for patient';
+    END IF;
+END $$;
+
+-- ============================================================================
+-- STEP 8: Patient reports own symptom
+-- ============================================================================
+
+\echo ''
+\echo 'STEP 8: Patient Reports Symptom'
+\echo '----------------------------------------'
+
+DO $$
+DECLARE
+    v_patient_id INT;
+    v_symptom_id INT;
+    v_symptom_name TEXT;
+BEGIN
+    -- Get first patient
+    SELECT patient_id INTO v_patient_id FROM app.patient LIMIT 1;
+    
+    -- Get a symptom (e.g., Headache)
+    SELECT s.symptom_id, c.condition_name INTO v_symptom_id, v_symptom_name
+    FROM app.symptom s
+    JOIN app.condition c ON s.condition_id = c.condition_id
+    WHERE c.condition_name = 'Headache'
+    LIMIT 1;
+    
+    -- Patient reports symptom
+    INSERT INTO app.patient_symptom (patient_id, symptom_id, date_reported, severity, notes)
+    VALUES (
+        v_patient_id,
+        v_symptom_id,
+        NOW(),
+        'Mild',
+        'Self-reported by patient via app'
+    )
+    ON CONFLICT (patient_id, symptom_id, date_reported) DO NOTHING;
+    
+    RAISE NOTICE '✅ Patient reported symptom: %', v_symptom_name;
+END $$;
+
+-- ============================================================================
+-- STEP 9: Patient views updated medication log
+-- ============================================================================
+
+\echo ''
+\echo 'STEP 9: Updated Medication Log'
+\echo '----------------------------------------'
+
+SELECT 
+    m.med_name,
+    ml.scheduled_time,
+    ml.actual_taken_time,
+    ml.status,
+    CASE 
+        WHEN ml.status = 'Taken' AND ml.actual_taken_time <= ml.scheduled_time + INTERVAL '1 hour'
+        THEN '✅ On Time'
+        WHEN ml.status = 'Taken' THEN '⏰ Late'
+        WHEN ml.status = 'Missed' THEN '❌ Missed'
+        WHEN ml.status = 'Skipped' THEN '⏭️ Skipped'
+        ELSE '❓ Unknown'
+    END AS adherence_status,
+    ml.notes
+FROM app.medication_log ml
+JOIN app.medication m ON ml.medication_id = m.medication_id
+WHERE ml.patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
+ORDER BY ml.scheduled_time DESC
+LIMIT 10;
+
+\echo ''
+\echo '✅ Patient queries completed successfully!'

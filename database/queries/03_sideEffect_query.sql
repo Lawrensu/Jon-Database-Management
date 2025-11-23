@@ -252,7 +252,10 @@ SELECT
     c.condition_name AS side_effect_name,
     c.condition_desc AS side_effect_description,
     COUNT(DISTINCT mse.medication_id) AS total_medications,
-    STRING_AGG(DISTINCT mse.frequency, ', ' ORDER BY mse.frequency) AS fregit quencies,
+    COUNT(CASE WHEN mse.frequency = 'Common' THEN 1 END) AS common_frequency_count,
+    COUNT(CASE WHEN mse.frequency = 'Uncommon' THEN 1 END) AS uncommon_frequency_count,
+    COUNT(CASE WHEN mse.frequency = 'Rare' THEN 1 END) AS rare_frequency_count,
+    STRING_AGG(DISTINCT mse.frequency, ', ' ORDER BY mse.frequency) AS frequencies,  -- ✅ FIXED
     STRING_AGG(
         m.med_name || ' (' || COALESCE(mse.frequency, 'Unknown') || ')',  
         ', ' 

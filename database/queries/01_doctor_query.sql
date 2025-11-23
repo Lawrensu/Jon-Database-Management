@@ -1,101 +1,170 @@
--- Complete Doctor Workflow Test (Auto-executable)
+-- PAKAR Tech Healthcare - Doctor Use Case Queries
+-- COS 20031 Database Design Project
+
 SET search_path TO app, public;
 
-BEGIN;
+\echo '========================================'
+\echo '👨‍⚕️ Doctor Use Case Queries'
+\echo '========================================'
 
 -- ============================================================================
--- STEP 1: Admin assigns patient to doctor
+-- STEP 1: Doctor views their profile
 -- ============================================================================
-INSERT INTO app.patient_doctor (patient_id, doctor_id, assigned_by)
+
+\echo ''
+\echo 'STEP 1: Doctor Profile'
+\echo '----------------------------------------'
+
+-- Get the first doctor who has assigned patients
+WITH doctor_with_patients AS (
+    SELECT DISTINCT p.doctor_id
+    FROM app.patient p
+    WHERE p.doctor_id IS NOT NULL
+    LIMIT 1
+)
 SELECT 
-    (SELECT patient_id FROM app.patient LIMIT 1),
-    (SELECT doctor_id FROM app.doctor LIMIT 1),
-    (SELECT user_id FROM app.user_account WHERE user_type = 'Admin' LIMIT 1)
-WHERE EXISTS (SELECT 1 FROM app.patient)
-  AND EXISTS (SELECT 1 FROM app.doctor)
-ON CONFLICT (patient_id, doctor_id) DO UPDATE 
-  SET assigned_at = now();
-
-\echo '✅ Step 1: Patient assigned to doctor'
+    d.doctor_id,
+    u.username,
+    u.first_name || ' ' || u.last_name AS doctor_name,
+    u.email,
+    d.phone_num,
+    d.specialisation,
+    d.qualification,
+    d.license_num,
+    d.license_exp
+FROM app.doctor d
+JOIN app.user_account u ON d.user_id = u.user_id
+WHERE d.doctor_id IN (SELECT doctor_id FROM doctor_with_patients);
 
 -- ============================================================================
 -- STEP 2: Doctor views assigned patients
 -- ============================================================================
+
+\echo ''
+\echo 'STEP 2: Assigned Patients'
+\echo '----------------------------------------'
+
+-- Get patients for the first doctor with patients
+WITH selected_doctor AS (
+    SELECT DISTINCT p.doctor_id
+    FROM app.patient p
+    WHERE p.doctor_id IS NOT NULL
+    LIMIT 1
+)
 SELECT 
     p.patient_id,
     u.first_name || ' ' || u.last_name AS patient_name,
-    u.email,
-    pd.assigned_at
+    u.email AS patient_email,
+    p.phone_num AS patient_phone,
+    p.birth_date,
+    EXTRACT(YEAR FROM AGE(p.birth_date)) AS age,
+    p.gender,
+    p.emergency_contact_name,
+    p.emergency_phone
 FROM app.patient p
-JOIN app.patient_doctor pd USING (patient_id)
 JOIN app.user_account u ON p.user_id = u.user_id
-WHERE pd.doctor_id = (SELECT doctor_id FROM app.doctor LIMIT 1)
-LIMIT 5;
-
-\echo '✅ Step 2: Doctor can see assigned patients'
+WHERE p.doctor_id IN (SELECT doctor_id FROM selected_doctor)
+ORDER BY u.last_name, u.first_name;
 
 -- ============================================================================
--- STEP 3: Doctor records patient symptom
+-- STEP 3: Doctor views patient symptoms
 -- ============================================================================
-INSERT INTO app.patient_symptom (patient_id, symptom_id, date_reported, severity, notes)
+
+\echo ''
+\echo 'STEP 3: Patient Symptoms'
+\echo '----------------------------------------'
+
+-- Get symptoms for patients assigned to first doctor
+WITH selected_doctor AS (
+    SELECT DISTINCT p.doctor_id
+    FROM app.patient p
+    WHERE p.doctor_id IS NOT NULL
+    LIMIT 1
+)
 SELECT 
-    (SELECT patient_id FROM app.patient LIMIT 1),
-    (SELECT symptom_id FROM app.symptom LIMIT 1),
-    NOW(),
-    'Moderate',
-    'Persistent headache for 3 days'
-WHERE EXISTS (SELECT 1 FROM app.patient)
-  AND EXISTS (SELECT 1 FROM app.symptom)
-ON CONFLICT (patient_id, symptom_id, date_reported) DO NOTHING;
-
-\echo '✅ Step 3: Patient symptom recorded'
+    p.patient_id,
+    u.first_name || ' ' || u.last_name AS patient_name,
+    c.condition_name AS symptom_name,
+    c.condition_desc AS symptom_description,
+    ps.severity,
+    ps.date_reported,
+    ps.date_resolved,
+    ps.notes
+FROM app.patient_symptom ps
+JOIN app.patient p ON ps.patient_id = p.patient_id
+JOIN app.user_account u ON p.user_id = u.user_id
+JOIN app.symptom s ON ps.symptom_id = s.symptom_id
+JOIN app.condition c ON s.condition_id = c.condition_id
+WHERE p.doctor_id IN (SELECT doctor_id FROM selected_doctor)
+ORDER BY ps.date_reported DESC
+LIMIT 10;
 
 -- ============================================================================
--- STEP 4: Create prescription → prescription_version → schedule → reminders
+-- STEP 4: Doctor creates prescription (simulation)
 -- ============================================================================
+
+\echo ''
+\echo 'STEP 4: Doctor Creates Prescription'
+\echo '----------------------------------------'
+
 DO $$
 DECLARE
-    v_prescription_id INT;
+    new_prescription_id INT;
     v_patient_id INT;
     v_doctor_id INT;
     v_medication_id INT;
-    v_version_id INT;
-    v_schedule_id INT;
+    v_prescription_version_id INT;
 BEGIN
-    -- Get IDs
-    SELECT patient_id INTO v_patient_id FROM app.patient LIMIT 1;
-    SELECT doctor_id INTO v_doctor_id FROM app.doctor LIMIT 1;
-    SELECT medication_id INTO v_medication_id FROM app.medication LIMIT 1;
+    -- Get first patient with assigned doctor
+    SELECT patient_id, doctor_id INTO v_patient_id, v_doctor_id
+    FROM app.patient
+    WHERE doctor_id IS NOT NULL
+    LIMIT 1;
     
-    -- Step 4a: Create prescription
-    INSERT INTO app.prescription (patient_id, doctor_id, status, created_date, doctor_note)
-    VALUES (v_patient_id, v_doctor_id, 'Active', NOW(), 'Prescribed for headache relief')
-    RETURNING prescription_id INTO v_prescription_id;
+    -- Check if we found a patient
+    IF v_patient_id IS NULL THEN
+        RAISE NOTICE '❌ No patients found with assigned doctors';
+        RAISE NOTICE 'Run this first: npm run db:connect';
+        RAISE NOTICE 'Then paste the assignment SQL from previous messages';
+        RETURN;
+    END IF;
     
-    RAISE NOTICE '✅ Step 4a: Prescription created (ID: %)', v_prescription_id;
+    -- Get first medication
+    SELECT medication_id INTO v_medication_id
+    FROM app.medication
+    LIMIT 1;
     
-    -- Step 4b: Create prescription version
+    -- Create prescription
+    INSERT INTO app.prescription (patient_id, doctor_id, created_date, status, doctor_note)
+    VALUES (
+        v_patient_id,
+        v_doctor_id,
+        NOW(),
+        'Active',
+        'Test prescription created by doctor query'
+    )
+    RETURNING prescription_id INTO new_prescription_id;
+    
+    -- Add medication version
     INSERT INTO app.prescription_version (
-        prescription_id, 
-        medication_id, 
-        titration, 
-        titration_unit, 
-        start_date, 
-        end_date, 
+        prescription_id,
+        medication_id,
+        titration,
+        titration_unit,
+        start_date,
         reason_for_change
-    ) VALUES (
-        v_prescription_id,
+    )
+    VALUES (
+        new_prescription_id,
         v_medication_id,
         500,
         'mg',
         NOW(),
-        NOW() + INTERVAL '30 days',
-        'Initial prescription'
-    ) RETURNING prescription_version_id INTO v_version_id;
+        'Initial prescription for testing'
+    )
+    RETURNING prescription_version_id INTO v_prescription_version_id;
     
-    RAISE NOTICE '✅ Step 4b: Prescription version created (ID: %)', v_version_id;
-    
-    -- Step 4c: Create medication schedule
+    -- Add medication schedule
     INSERT INTO app.medication_schedule (
         prescription_version_id,
         med_timing,
@@ -103,105 +172,262 @@ BEGIN
         frequency_interval_hours,
         duration,
         duration_unit
-    ) VALUES (
-        v_version_id,
-        'AfterMeal',
-        2,  -- Twice daily
-        12, -- Every 12 hours
+    )
+    VALUES (
+        v_prescription_version_id,
+        'AfterMeal'::med_timing_enum,
+        1,
+        24,
         30,
-        'Days'
-    ) RETURNING medication_schedule_id INTO v_schedule_id;
+        'Days'::duration_unit_enum
+    );
     
-    RAISE NOTICE '✅ Step 4c: Medication schedule created (ID: %)', v_schedule_id;
-    
-    -- Step 4d: Create reminders (always in the future)
-INSERT INTO app.reminder (patient_id, medication_schedule_id, message, schedule)
-VALUES 
-    -- Tomorrow morning 8 AM
-    (v_patient_id, v_schedule_id, 'Morning dose: Take with breakfast', 
-     (CURRENT_DATE + INTERVAL '1 day')::timestamp + TIME '08:00'),
-    
-    -- Tomorrow evening 8 PM
-    (v_patient_id, v_schedule_id, 'Evening dose: Take with dinner', 
-     (CURRENT_DATE + INTERVAL '1 day')::timestamp + TIME '20:00'),
-    
-    -- Day after tomorrow morning 8 AM
-    (v_patient_id, v_schedule_id, 'Morning dose: Take with breakfast', 
-     (CURRENT_DATE + INTERVAL '2 days')::timestamp + TIME '08:00'),
-    
-    -- Day after tomorrow evening 8 PM
-    (v_patient_id, v_schedule_id, 'Evening dose: Take with dinner', 
-     (CURRENT_DATE + INTERVAL '2 days')::timestamp + TIME '20:00');
-    
-    RAISE NOTICE '✅ Step 4d: Reminders created (2 reminders)';
+    RAISE NOTICE '✅ Created prescription ID: %', new_prescription_id;
+    RAISE NOTICE '✅ Patient ID: %, Doctor ID: %, Medication ID: %', 
+        v_patient_id, v_doctor_id, v_medication_id;
+    RAISE NOTICE '✅ Prescription version: %, Schedule added', v_prescription_version_id;
 END $$;
 
 -- ============================================================================
--- STEP 5: Patient logs medication as "Taken"
+-- STEP 5: Doctor assigns symptom to patient
 -- ============================================================================
-INSERT INTO app.medication_log (
-    patient_id,
-    medication_id,
-    medication_schedule_id,
-    scheduled_time,
-    actual_taken_time,
-    status,
-    notes
+
+\echo ''
+\echo 'STEP 5: Assign Symptom to Patient'
+\echo '----------------------------------------'
+
+DO $$
+DECLARE
+    v_patient_id INT;
+    v_symptom_id INT;
+    v_patient_name TEXT;
+    v_symptom_name TEXT;
+BEGIN
+    -- Get first patient with assigned doctor
+    SELECT p.patient_id, u.first_name || ' ' || u.last_name INTO v_patient_id, v_patient_name
+    FROM app.patient p
+    JOIN app.user_account u ON p.user_id = u.user_id
+    WHERE p.doctor_id IS NOT NULL
+    LIMIT 1;
+    
+    -- Get first symptom
+    SELECT s.symptom_id, c.condition_name INTO v_symptom_id, v_symptom_name
+    FROM app.symptom s
+    JOIN app.condition c ON s.condition_id = c.condition_id
+    LIMIT 1;
+    
+    -- Assign symptom to patient
+    INSERT INTO app.patient_symptom (patient_id, symptom_id, date_reported, severity, notes)
+    VALUES (
+        v_patient_id,
+        v_symptom_id,
+        NOW(),
+        'Moderate',
+        'Reported by doctor during consultation'
+    )
+    ON CONFLICT (patient_id, symptom_id, date_reported) DO NOTHING;
+    
+    RAISE NOTICE '✅ Assigned symptom "%" to patient "%"', v_symptom_name, v_patient_name;
+END $$;
+
+-- ============================================================================
+-- STEP 6: Create complete prescription workflow
+-- ============================================================================
+
+\echo ''
+\echo 'STEP 6: Complete Prescription Workflow'
+\echo '----------------------------------------'
+
+DO $$
+DECLARE
+    v_prescription_id INT;
+    v_prescription_version_id INT;
+    v_medication_schedule_id INT;
+    v_patient_id INT;
+    v_doctor_id INT;
+    v_medication_id INT;
+BEGIN
+    -- Get patient and doctor
+    SELECT patient_id, doctor_id INTO v_patient_id, v_doctor_id
+    FROM app.patient
+    WHERE doctor_id IS NOT NULL
+    LIMIT 1;
+    
+    -- Get medication
+    SELECT medication_id INTO v_medication_id
+    FROM app.medication
+    LIMIT 1;
+    
+    -- Step 1: Create prescription
+    INSERT INTO app.prescription (patient_id, doctor_id, created_date, status, doctor_note)
+    VALUES (v_patient_id, v_doctor_id, NOW(), 'Active', 'Complete workflow test')
+    RETURNING prescription_id INTO v_prescription_id;
+    
+    RAISE NOTICE '✅ Step 1: Created prescription ID: %', v_prescription_id;
+    
+    -- Step 2: Create prescription version
+    INSERT INTO app.prescription_version (
+        prescription_id,
+        medication_id,
+        titration,
+        titration_unit,
+        start_date,
+        reason_for_change
+    )
+    VALUES (
+        v_prescription_id,
+        v_medication_id,
+        500,
+        'mg',
+        NOW(),
+        'Initial prescription'
+    )
+    RETURNING prescription_version_id INTO v_prescription_version_id;
+    
+    RAISE NOTICE '✅ Step 2: Created prescription version ID: %', v_prescription_version_id;
+    
+    -- Step 3: Create medication schedule
+    INSERT INTO app.medication_schedule (
+        prescription_version_id,
+        med_timing,
+        frequency_times_per_day,
+        frequency_interval_hours,
+        duration,
+        duration_unit
+    )
+    VALUES (
+        v_prescription_version_id,
+        'AfterMeal',
+        2,
+        12,
+        30,
+        'Days'
+    )
+    RETURNING medication_schedule_id INTO v_medication_schedule_id;
+    
+    RAISE NOTICE '✅ Step 3: Created medication schedule ID: %', v_medication_schedule_id;
+    
+    -- Step 4: Create reminders (next 3 doses)
+    INSERT INTO app.reminder (patient_id, medication_schedule_id, message, schedule)
+    SELECT 
+        v_patient_id,
+        v_medication_schedule_id,
+        'Time to take your medication!',
+        NOW() + (g * INTERVAL '12 hours')
+    FROM generate_series(1, 3) g;
+    
+    RAISE NOTICE '✅ Step 4: Created 3 reminders for patient';
+    
+    -- Step 5: Create initial medication log entries
+    INSERT INTO app.medication_log (patient_id, medication_id, medication_schedule_id, scheduled_time, status, notes)
+    SELECT 
+        v_patient_id,
+        v_medication_id,
+        v_medication_schedule_id,
+        NOW() + (g * INTERVAL '12 hours'),
+        'Missed',
+        'Auto-created log entry'
+    FROM generate_series(0, 2) g;
+    
+    RAISE NOTICE '✅ Step 5: Created 3 medication log entries';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE '✅ Complete workflow created successfully!';
+END $$;
+
+-- ============================================================================
+-- STEP 7: View complete prescription details
+-- ============================================================================
+
+\echo ''
+\echo 'STEP 7: Complete Prescription Details'
+\echo '----------------------------------------'
+
+WITH latest_prescription AS (
+    SELECT prescription_id FROM app.prescription ORDER BY created_date DESC LIMIT 1
 )
 SELECT 
-    (SELECT patient_id FROM app.patient LIMIT 1),
-    (SELECT medication_id FROM app.medication LIMIT 1),
-    (SELECT medication_schedule_id FROM app.medication_schedule LIMIT 1),
-    NOW(),
-    NOW(),
-    'Taken',
-    'Took with breakfast'
-WHERE EXISTS (SELECT 1 FROM app.medication_schedule);
-
-\echo '✅ Step 5: Patient logged medication as TAKEN'
-
--- ============================================================================
--- STEP 6: View upcoming reminders
--- ============================================================================
-SELECT 
-    r.reminder_id,
-    r.schedule,
-    r.message,
+    pr.prescription_id,
+    u_patient.first_name || ' ' || u_patient.last_name AS patient_name,
+    u_doctor.first_name || ' ' || u_doctor.last_name AS doctor_name,
     m.med_name,
-    ms.frequency_times_per_day,
-    ms.duration || ' ' || ms.duration_unit AS duration
-FROM app.reminder r
-JOIN app.medication_schedule ms ON r.medication_schedule_id = ms.medication_schedule_id
-JOIN app.prescription_version pv ON ms.prescription_version_id = pv.prescription_version_id
+    pv.titration || ' ' || pv.titration_unit AS dosage,
+    ms.med_timing,
+    ms.frequency_times_per_day || ' times per day' AS frequency,
+    ms.duration || ' ' || ms.duration_unit AS duration,
+    pr.status,
+    pr.created_date
+FROM app.prescription pr
+JOIN latest_prescription lp ON pr.prescription_id = lp.prescription_id
+JOIN app.prescription_version pv ON pr.prescription_id = pv.prescription_id
+JOIN app.medication_schedule ms ON pv.prescription_version_id = ms.prescription_version_id
+JOIN app.patient p ON pr.patient_id = p.patient_id
+JOIN app.user_account u_patient ON p.user_id = u_patient.user_id
+JOIN app.doctor d ON pr.doctor_id = d.doctor_id
+JOIN app.user_account u_doctor ON d.user_id = u_doctor.user_id
 JOIN app.medication m ON pv.medication_id = m.medication_id
-WHERE r.schedule >= NOW()
-ORDER BY r.schedule;
-
-\echo '✅ Step 6: Upcoming reminders displayed'
-
-COMMIT;
+WHERE pv.end_date IS NULL;
 
 -- ============================================================================
 -- SUMMARY
 -- ============================================================================
+
 \echo ''
 \echo '============================================'
-\echo '📊 Workflow Summary'
+\echo '📊 SUMMARY REPORT'
 \echo '============================================'
 
-SELECT 
-    'Patient-Doctor Assignments' AS metric,
-    COUNT(*)::text AS value
-FROM app.patient_doctor
-UNION ALL
-SELECT 'Patient Symptoms', COUNT(*)::text FROM app.patient_symptom
-UNION ALL
-SELECT 'Active Prescriptions', COUNT(*)::text FROM app.prescription WHERE status = 'Active'
-UNION ALL
-SELECT 'Prescription Versions', COUNT(*)::text FROM app.prescription_version
-UNION ALL
-SELECT 'Medication Schedules', COUNT(*)::text FROM app.medication_schedule
-UNION ALL
-SELECT 'Upcoming Reminders', COUNT(*)::text FROM app.reminder WHERE schedule >= NOW()
-UNION ALL
-SELECT 'Medications Logged', COUNT(*)::text FROM app.medication_log;
+DO $$
+DECLARE
+    v_doctor_id INT;
+    v_doctor_name TEXT;
+    v_patient_count INT;
+    v_prescription_count INT;
+    v_symptom_count INT;
+BEGIN
+    -- Get selected doctor
+    SELECT DISTINCT p.doctor_id INTO v_doctor_id
+    FROM app.patient p
+    WHERE p.doctor_id IS NOT NULL
+    LIMIT 1;
+    
+    IF v_doctor_id IS NULL THEN
+        RAISE NOTICE '❌ NO DATA: No patients assigned to doctors!';
+        RAISE NOTICE '';
+        RAISE NOTICE '🔧 FIX: Run patient-doctor assignment:';
+        RAISE NOTICE '   npm run db:connect';
+        RAISE NOTICE '   (then paste assignment SQL)';
+        RETURN;
+    END IF;
+    
+    -- Get doctor name
+    SELECT u.first_name || ' ' || u.last_name INTO v_doctor_name
+    FROM app.doctor d
+    JOIN app.user_account u ON d.user_id = u.user_id
+    WHERE d.doctor_id = v_doctor_id;
+    
+    -- Count patients
+    SELECT COUNT(*) INTO v_patient_count
+    FROM app.patient
+    WHERE doctor_id = v_doctor_id;
+    
+    -- Count prescriptions
+    SELECT COUNT(*) INTO v_prescription_count
+    FROM app.prescription
+    WHERE doctor_id = v_doctor_id;
+    
+    -- Count symptoms
+    SELECT COUNT(*) INTO v_symptom_count
+    FROM app.patient_symptom ps
+    JOIN app.patient p ON ps.patient_id = p.patient_id
+    WHERE p.doctor_id = v_doctor_id;
+    
+    RAISE NOTICE 'Doctor: % (ID: %)', v_doctor_name, v_doctor_id;
+    RAISE NOTICE '----------------------------------------';
+    RAISE NOTICE 'Assigned Patients: %', v_patient_count;
+    RAISE NOTICE 'Active Prescriptions: %', v_prescription_count;
+    RAISE NOTICE 'Reported Symptoms: %', v_symptom_count;
+    RAISE NOTICE '========================================';
+END $$;
+
+\echo ''
+\echo '✅ Doctor queries completed successfully!'
