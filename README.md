@@ -257,35 +257,81 @@ npm run project:check  # Check if everything is running
 - **Username:** jondb_admin
 - **Password:** JonathanBangerDatabase26!
 
-## Project Structure 
+## Project Structure
+
 ```
 Jon-Database-Management/
+├── .github/
+│   └── workflows/
+│       └── cicd_config.yml
+│
 ├── database/
-│   ├── project/
-│   │   ├── 01_core_schema.sql       ← Main schema file
-│   │   └── databaseSchema.md        ← Complete documentation
-│   ├── seeds/
-│   │   ├── 01_patients_seed.sql     ← Sample patients
-│   │   ├── 02_doctors_seed.sql      ← Sample doctors
-│   │   └── seeds.md                 ← Data documentation
-│   ├── queries/
-│   │   ├── test_queries.sql         ← Test queries
-│   │   └── testQuery.md             ← Query guide
+│   ├── backups/
+│   │
 │   ├── init/
-│   │   └── 01_setup.sql             ← Database initialization
-│   ├── backups/                     ← Backup location
-│   └── migrations/                  ← Schema migrations
+│   │   ├── 01_setup.sql
+│   │   └── 02_monitor.sql
+│   │
+│   ├── migrations/
+│   │   └── (empty - not needed unless actual production)
+│   │
+│   ├── performance/
+│   │   ├── 01_baseline_benchmark.sql
+│   │   ├── 02_advanced_indexes.sql
+│   │   ├── 03_after_benchmark.sql
+│   │   ├── 04_comparison_report.sql
+│   │   ├── 05_demonstration.sql
+│   │   ├── benchmarks_guide/
+│   │   │   ├── after_results.txt
+│   │   │   ├── before_results.txt
+│   │   │   ├── benchmark.md
+│   │   │   ├── comparison_report.txt
+│   │   │   ├── explain_plans.txt
+│   │   │   ├── testingGuide.md
+│   │   │   └── screenshots/
+│   │   └── materialized_views/
+│   │       └── 01_patient_analytics_mv.sql
+│   │
+│   ├── project/
+│   │   ├── 01_core_schema.sql
+│   │   ├── 02_monitoring_triggers.sql
+│   │   └── databaseSchema.md
+│   │
+│   ├── queries/
+│   │   ├── 00_validation_query.sql
+│   │   ├── test_query.sql
+│   │   └── testQuery.md
+│   │
+│   ├── seeds/
+│   │   ├── 00_reference_data.sql
+│   │   ├── 01_patients_seed.sql
+│   │   ├── 02_doctors_seed.sql
+│   │   ├── 03_admins_seed.sql
+│   │   ├── 04_prescriptions_seed.sql
+│   │   └── seeds.md
+│   │
+│   └── tests/
+│
 ├── docs/
-│   ├── README.md                    ← DevOps guide
-│   └── guides/
-│       └── git-workflow.md          ← Git branching strategy
+│   ├── design/
+│   │
+│   ├── guides/
+│   │   ├── git-workflow.md
+│   │
+│   └── devOpsDocs.md
+│
 ├── scripts/
-│   └── setup-database.sh            ← Automated setup script
-├── docker-compose.yml               ← Docker configuration
-├── package.json                     ← NPM commands
-├── .env                             ← Environment variables
-└── README.md                        ← This file
+│   └── setup-database.sh
+│
+├── .env
+├── .env.example
+├── .gitignore
+├── .psqlrc
+├── docker-compose.yml
+├── package.json
+└── README.md
 ```
+
 ---
 
 ## Development Workflow
