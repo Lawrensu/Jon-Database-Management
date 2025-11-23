@@ -1,5 +1,6 @@
 -- PAKAR Tech Healthcare - Admin Accounts
 -- COS 20031 Database Design Project
+-- Author: [Cherylynn]
 
 SET search_path TO app, public;
 
