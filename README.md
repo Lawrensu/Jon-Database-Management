@@ -75,6 +75,7 @@ npm run db:status
    npm run monitoring:enable  # Attaches audit triggers
 
    # OR use combined command (better to do manually to get used to it):
+   # Can refer to down below for the commands
    npm run schema:full
 
    # Expected output after schema:create:
@@ -98,54 +99,7 @@ npm run db:status
    # Anomaly detection: ACTIVE
    # =========================================
 
-   # 5. Load reference data (conditions, symptoms, medications)
-   npm run seeds:reference
-
-   # Expected Output:
-   # ========================================
-   # Reference Data Loaded Successfully
-   # ========================================
-   # Conditions: 27 records
-   # Symptoms: 10 records
-   # Side Effects: 11 records
-   # Medications: 15 records
-   # Med-SideEffect Links: 6 records
-   # ========================================
-
-   # 6. Load patient data
-   npm run seeds:patients
-
-   # Expected Output:
-   # ========================================
-   # Patient Seed Data Loaded
-   # ========================================
-   # Patients: 200 records
-   # User Accounts (Patient): 200 records
-   # ========================================
-
-   # 7. Load doctor data
-   npm run seeds:doctors
-
-   # Expected Output:
-   # ========================================
-   # Doctor Seed Data Loaded
-   # ========================================
-   # Doctors: 20 records
-   # User Accounts (Doctor): 20 records
-   # ========================================
-
-   # 8. Load admin data
-   npm run seeds:admins
-
-   # Expected Output:
-   # ========================================
-   # Admin Seed Data Loaded
-   # ========================================
-   # Regular Admins: 3 accounts
-   # Super Admins: 2 accounts
-   # ========================================
-
-   # 9. Verify everything works
+   # 5. Verify everything works
    npm run queries:validate
 
    # Expected Output:
