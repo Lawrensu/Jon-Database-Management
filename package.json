@@ -26,10 +26,16 @@
     "seeds:reference": "type database\\seeds\\00_reference_data.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
     "seeds:patients": "type database\\seeds\\01_patients_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
     "seeds:doctors": "type database\\seeds\\02_doctors_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "seeds:test-users": "type database\\seeds\\03_test_users.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
     "seeds:run": "npm run seeds:reference && npm run seeds:patients && npm run seeds:doctors",
     
     "queries:validate": "type database\\queries\\00_validation_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
     "queries:test": "type database\\queries\\test_queries.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "queries:doctor": "type database\\queries\\01_doctor_query.sql | docker compose exec -T postgres psql -U jondb_admin -d  jon_database_dev",
+    "queries:patient": "type database\\queries\\02_patient_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "queries:doctorTest": "type database\\queries\\03_doctorTest_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "queries:patientTest": "type database\\queries\\04_patientTest_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "queries:sideEffects": "type database\\queries\\05_sideEffect_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
     "queries:run": "npm run queries:validate && npm run queries:test",
     
     "migrate:up": "for file in database/migrations/*.sql; do type \"$file\" | npm run sql:run; done",
