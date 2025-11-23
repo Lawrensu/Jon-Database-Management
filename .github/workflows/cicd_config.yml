@@ -83,31 +83,9 @@ jobs:
             fi
           done
 
-      # --- REVISED STEP ---
-      # This step no longer uses `npm test`. It runs the SQL files directly.
       - name: Run database tests
         env:
           PGPASSWORD: JonathanBangerDatabase26!
         run: |
-          echo "Running database schema tests..."
-          psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/tests/schema_tests.sql
-          
-          echo "Running database data integrity tests..."
-          #Although the ON_ERROR_STOP is redundant due to the SQL file settings, it's kept here for clarity.
-          psql -v ON_ERROR_STOP=1 -h localhost -U jondb_admin -d jon_database_dev -f ./database/tests/data_integrity_tests.sql
-          
-          echo "All database tests passed."
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Build application
-        run: npm run build
+          psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/tests/run_all_tests_with_reporting.sql
   
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Deploy application
-        run: echo "Deploy to production"

@@ -1,80 +1,109 @@
--- PAKAR Tech Healthcare - Doctor & Staff Sample Data
+-- PAKAR Tech Healthcare - Doctor Sample Data
 -- COS 20031 Database Design Project
 -- Author: [Cherylynn]
 
--- ============================================================================
--- DOCTOR & STAFF SAMPLE DATA
--- ============================================================================
--- This file contains realistic sample data for doctors and staff.
--- Data includes: 20+ doctors with specializations, schedules, and departments
--- ============================================================================
-
--- Set search path to use 'app' schema
 SET search_path TO app, public;
 
--- 1) Doctors: map seed to core schema `app.doctor` (singular)
--- Approach:
---  - Create a minimal `app.user_account` row per doctor so we can preserve email/username from seeds.md
---  - Insert into `app.doctor` using the required columns: doctor_id, user_id (UUID ref), phone_num, license_num, license_exp, qualification, specialization, gender, created_at
---  - Keep inserts idempotent with ON CONFLICT DO NOTHING
+BEGIN;
 
--- Insert minimal user_account rows (username stores the doctor's email)
--- Insert minimal user_account rows (username stores the doctor's email)
-INSERT INTO app.user_account (user_id, username, password_hash, user_type, is_active, created_at)
-SELECT v.user_id, v.username, v.password_hash, v.user_type, v.is_active, v.created_at
-FROM (
-	VALUES
-		('USER_DR2024001','dr.rajesh.menon@pakartech.com','seed-password-hash','Doctor', TRUE, '2010-03-15'::timestamp),
-		('USER_DR2024002','dr.amira.hassan@pakartech.com','seed-password-hash','Doctor', TRUE, '2012-09-01'::timestamp),
-		('USER_DR2024003','dr.lim.wei.chong@pakartech.com','seed-password-hash','Doctor', TRUE, '2018-01-10'::timestamp),
-		('USER_DR2024004','dr.suresh.nair@pakartech.com','seed-password-hash','Doctor', TRUE, '2009-06-20'::timestamp),
-		('USER_DR2024005','dr.tan.siew.ling@pakartech.com','seed-password-hash','Doctor', TRUE, '2014-11-05'::timestamp),
-		('USER_DR2024006','dr.farid.ismail@pakartech.com','seed-password-hash','Doctor', TRUE, '2008-02-28'::timestamp),
-		('USER_DR2024007','dr.nurul.aziz@pakartech.com','seed-password-hash','Doctor', TRUE, '2020-05-12'::timestamp),
-		('USER_DR2024008','dr.david.tan@pakartech.com','seed-password-hash','Doctor', TRUE, '2016-07-01'::timestamp),
-		('USER_DR2024009','dr.aisha.rahim@pakartech.com','seed-password-hash','Doctor', TRUE, '2013-04-10'::timestamp),
-		('USER_DR2024010','dr.hannah.lee@pakartech.com','seed-password-hash','Doctor', TRUE, '2019-10-01'::timestamp),
-		('USER_DR2024011','dr.chong.ming@pakartech.com','seed-password-hash','Doctor', TRUE, '2015-08-15'::timestamp),
-		('USER_DR2024012','dr.mohd.azlan@pakartech.com','seed-password-hash','Doctor', TRUE, '2021-01-20'::timestamp),
-		('USER_DR2024013','dr.priya.menon@pakartech.com','seed-password-hash','Doctor', TRUE, '2012-12-01'::timestamp),
-		('USER_DR2024014','dr.wong.liang@pakartech.com','seed-password-hash','Doctor', TRUE, '2017-03-25'::timestamp),
-		('USER_DR2024015','dr.siti.noor@pakartech.com','seed-password-hash','Doctor', TRUE, '2011-09-05'::timestamp),
-		('USER_DR2024016','dr.leong.may@pakartech.com','seed-password-hash','Doctor', TRUE, '2014-06-30'::timestamp),
-		('USER_DR2024017','dr.rakesh.singh@pakartech.com','seed-password-hash','Doctor', TRUE, '2016-11-10'::timestamp),
-		('USER_DR2024018','dr.jason.tan@pakartech.com','seed-password-hash','Doctor', TRUE, '2022-04-01'::timestamp),
-		('USER_DR2024019','dr.elena.gomez@pakartech.com','seed-password-hash','Doctor', TRUE, '2005-02-07'::timestamp),
-		('USER_DR2024020','dr.nur.laila@pakartech.com','seed-password-hash','Doctor', TRUE, '2019-02-01'::timestamp)
-	) AS v(user_id, username, password_hash, user_type, is_active, created_at)
+-- ============================================================================
+-- STEP 1: CREATE USER ACCOUNTS FOR DOCTORS
+-- ============================================================================
+
+WITH doctor_data AS (
+  SELECT * FROM (VALUES
+    ('Rajesh', 'Menon', 'dr.rajesh.menon@pakartech.com', 'Male', 60122345001, 1, 'MBBS, MD (Cardiology)', 'Cardiologist', '2010-03-15'::timestamp),
+    ('Amira', 'Hassan', 'dr.amira.hassan@pakartech.com', 'Female', 60122345002, 2, 'MBBS, MD (Pediatrics)', 'Pediatrician', '2012-09-01'::timestamp),
+    ('Lim', 'Wei Chong', 'dr.lim.wei.chong@pakartech.com', 'Male', 60122345003, 3, 'MBBS', 'General Practitioner', '2018-01-10'::timestamp),
+    ('Suresh', 'Nair', 'dr.suresh.nair@pakartech.com', 'Male', 60122345004, 4, 'MBBS, MS (Orthopedics)', 'Orthopedic Surgeon', '2009-06-20'::timestamp),
+    ('Tan', 'Siew Ling', 'dr.tan.siew.ling@pakartech.com', 'Female', 60122345005, 5, 'MBBS, DDerm', 'Dermatologist', '2014-11-05'::timestamp),
+    ('Farid', 'Ismail', 'dr.farid.ismail@pakartech.com', 'Male', 60122345006, 6, 'MBBS, MD (Neurology)', 'Neurologist', '2008-02-28'::timestamp),
+    ('Nurul', 'Aziz', 'dr.nurul.aziz@pakartech.com', 'Female', 60122345007, 7, 'MBBS', 'General Practitioner', '2020-05-12'::timestamp),
+    ('David', 'Tan', 'dr.david.tan@pakartech.com', 'Male', 60122345008, 8, 'MBBS, MD (Cardiology)', 'Cardiologist', '2016-07-01'::timestamp),
+    ('Aisha', 'Rahim', 'dr.aisha.rahim@pakartech.com', 'Female', 60122345009, 9, 'MBBS, MD (OBGYN)', 'Obstetrician/Gynecologist', '2013-04-10'::timestamp),
+    ('Hannah', 'Lee', 'dr.hannah.lee@pakartech.com', 'Female', 60122345010, 10, 'MBBS, MRCEM', 'Emergency Medicine', '2019-10-01'::timestamp),
+    ('Chong', 'Ming', 'dr.chong.ming@pakartech.com', 'Male', 60122345011, 11, 'MBBS, MMed (Pediatrics)', 'Pediatrician', '2015-08-15'::timestamp),
+    ('Mohd', 'Azlan', 'dr.mohd.azlan@pakartech.com', 'Male', 60122345012, 12, 'MBBS', 'General Practitioner', '2021-01-20'::timestamp),
+    ('Priya', 'Menon', 'dr.priya.menon@pakartech.com', 'Female', 60122345013, 13, 'MBBS, MS (Orthopedics)', 'Orthopedic Surgeon', '2012-12-01'::timestamp),
+    ('Wong', 'Liang', 'dr.wong.liang@pakartech.com', 'Female', 60122345014, 14, 'MBBS, DDerm', 'Dermatologist', '2017-03-25'::timestamp),
+    ('Siti', 'Noor', 'dr.siti.noor@pakartech.com', 'Female', 60122345015, 15, 'MBBS, MD (Neurology)', 'Neurologist', '2011-09-05'::timestamp),
+    ('Leong', 'May', 'dr.leong.may@pakartech.com', 'Female', 60122345016, 16, 'MBBS, MOG (Obstetrics & Gyn)', 'Obstetrician/Gynecologist', '2014-06-30'::timestamp),
+    ('Rakesh', 'Singh', 'dr.rakesh.singh@pakartech.com', 'Male', 60122345017, 17, 'MBBS, MRCEM', 'Emergency Medicine', '2016-11-10'::timestamp),
+    ('Jason', 'Tan', 'dr.jason.tan@pakartech.com', 'Male', 60122345018, 18, 'MBBS', 'General Practitioner', '2022-04-01'::timestamp),
+    ('Elena', 'Gomez', 'dr.elena.gomez@pakartech.com', 'Female', 60122345019, 19, 'MBBS, MD (Cardiology)', 'Cardiologist', '2005-02-07'::timestamp),
+    ('Nur', 'Laila', 'dr.nur.laila@pakartech.com', 'Female', 60122345020, 20, 'MBBS, MMed (Pediatrics)', 'Pediatrician', '2019-02-01'::timestamp)
+  ) AS t(first_name, last_name, email, gender, phone_num, license_num, qualification, specialisation, created_at)
+),
+user_inserts AS (
+  INSERT INTO app.user_account (
+    username, 
+    password, 
+    user_type, 
+    first_name, 
+    last_name, 
+    email, 
+    is_active, 
+    created_at
+  )
+  SELECT
+    LOWER(REPLACE(email, '@pakartech.com', '')) AS username,
+    decode('736565642d70617373776f7264', 'hex') AS password,
+    'Doctor'::user_type_enum AS user_type,
+    first_name,
+    last_name,
+    email,
+    TRUE AS is_active,
+    created_at
+  FROM doctor_data
+  ON CONFLICT (username) DO NOTHING
+  RETURNING user_id, email
+)
+-- ============================================================================
+-- STEP 2: INSERT DOCTORS
+-- ============================================================================
+INSERT INTO app.doctor (
+  user_id,
+  phone_num,
+  license_num,
+  license_exp,
+  gender,
+  specialisation,
+  qualification,
+  created_at,
+  updated_at
+)
+SELECT
+  ui.user_id,
+  dd.phone_num,
+  dd.license_num,
+  (CURRENT_DATE + INTERVAL '2 years' + (dd.license_num || ' days')::INTERVAL)::timestamp AS license_exp,
+  dd.gender::gender_enum,
+  dd.specialisation,
+  dd.qualification,
+  dd.created_at,
+  dd.created_at AS updated_at
+FROM doctor_data dd
+JOIN user_inserts ui ON ui.email = dd.email
 ON CONFLICT (user_id) DO NOTHING;
 
--- Insert doctors into app.doctor using required columns; link to user_account via user_id (UUID id)
-INSERT INTO app.doctor (doctor_id, user_id, phone_num, license_num, license_exp, qualification, specialization, gender, created_at)
-SELECT v.doctor_id, ua.id, v.phone_num, v.license_num, v.license_exp, v.qualification, v.specialization, v.gender, v.created_at
-FROM (
-	VALUES
-		('DR2024001','USER_DR2024001','+60-12-2345-0001','MMC-CARD-00001','2030-03-15'::date,'MBBS, MD (Cardiology)','Cardiologist','Male','2010-03-15'::timestamp),
-		('DR2024002','USER_DR2024002','+60-12-2345-0002','MMC-PEDI-00002','2028-09-01'::date,'MBBS, MD (Pediatrics)','Pediatrician','Female','2012-09-01'::timestamp),
-		('DR2024003','USER_DR2024003','+60-12-2345-0003','MMC-GP-00003','2027-01-10'::date,'MBBS','General Practitioner','Male','2018-01-10'::timestamp),
-		('DR2024004','USER_DR2024004','+60-12-2345-0004','MMC-ORTHO-00004','2029-06-20'::date,'MBBS, MS (Orthopedics)','Orthopedic Surgeon','Male','2009-06-20'::timestamp),
-		('DR2024005','USER_DR2024005','+60-12-2345-0005','MMC-DERM-00005','2026-11-05'::date,'MBBS, DDerm','Dermatologist','Female','2014-11-05'::timestamp),
-		('DR2024006','USER_DR2024006','+60-12-2345-0006','MMC-NEURO-00006','2028-02-28'::date,'MBBS, MD (Neurology)','Neurologist','Male','2008-02-28'::timestamp),
-		('DR2024007','USER_DR2024007','+60-12-2345-0007','MMC-GP-00007','2028-05-12'::date,'MBBS','General Practitioner','Female','2020-05-12'::timestamp),
-		('DR2024008','USER_DR2024008','+60-12-2345-0008','MMC-CARD-00008','2027-07-01'::date,'MBBS, MD (Cardiology)','Cardiologist','Male','2016-07-01'::timestamp),
-		('DR2024009','USER_DR2024009','+60-12-2345-0009','MMC-OBG-00009','2029-04-10'::date,'MBBS, MD (OBGYN)','Obstetrician/Gynecologist','Female','2013-04-10'::timestamp),
-		('DR2024010','USER_DR2024010','+60-12-2345-0010','MMC-EMER-00010','2026-10-01'::date,'MBBS, MRCEM','Emergency Medicine','Female','2019-10-01'::timestamp),
-		('DR2024011','USER_DR2024011','+60-12-2345-0011','MMC-PEDI-00011','2028-08-15'::date,'MBBS, MMed (Pediatrics)','Pediatrician','Male','2015-08-15'::timestamp),
-		('DR2024012','USER_DR2024012','+60-12-2345-0012','MMC-GP-00012','2031-01-20'::date,'MBBS','General Practitioner','Male','2021-01-20'::timestamp),
-		('DR2024013','USER_DR2024013','+60-12-2345-0013','MMC-ORTHO-00013','2027-12-01'::date,'MBBS, MS (Orthopedics)','Orthopedic Surgeon','Female','2012-12-01'::timestamp),
-		('DR2024014','USER_DR2024014','+60-12-2345-0014','MMC-DERM-00014','2028-03-25'::date,'MBBS, DDerm','Dermatologist','Female','2017-03-25'::timestamp),
-		('DR2024015','USER_DR2024015','+60-12-2345-0015','MMC-NEURO-00015','2026-09-05'::date,'MBBS, MD (Neurology)','Neurologist','Female','2011-09-05'::timestamp),
-		('DR2024016','USER_DR2024016','+60-12-2345-0016','MMC-OBG-00016','2029-06-30'::date,'MBBS, MOG (Obstetrics & Gyn)','Obstetrician/Gynecologist','Female','2014-06-30'::timestamp),
-		('DR2024017','USER_DR2024017','+60-12-2345-0017','MMC-EMER-00017','2027-11-10'::date,'MBBS, MRCEM','Emergency Medicine','Male','2016-11-10'::timestamp),
-		('DR2024018','USER_DR2024018','+60-12-2345-0018','MMC-GP-00018','2032-04-01'::date,'MBBS','General Practitioner','Male','2022-04-01'::timestamp),
-		('DR2024019','USER_DR2024019','+60-12-2345-0019','MMC-CARD-00019','2025-02-07'::date,'MBBS, MD (Cardiology)','Cardiologist','Female','2005-02-07'::timestamp),
-		('DR2024020','USER_DR2024020','+60-12-2345-0020','MMC-PEDI-00020','2028-02-01'::date,'MBBS, MMed (Pediatrics)','Pediatrician','Female','2019-02-01'::timestamp)
-	) AS v(doctor_id, user_key, phone_num, license_num, license_exp, qualification, specialization, gender, created_at)
-	LEFT JOIN app.user_account ua ON ua.user_id = v.user_key
-ON CONFLICT (doctor_id) DO NOTHING;
+COMMIT;
 
--- Success message (non-blocking for psql scripts)
-RAISE NOTICE '02_doctors_seed completed: user_account and doctor records inserted into app.user_account and app.doctor.';
+-- ============================================================================
+-- VERIFICATION
+-- ============================================================================
+
+DO $$
+DECLARE
+    doctor_count INT;
+    user_count INT;
+BEGIN
+    SELECT COUNT(*) INTO doctor_count FROM app.doctor;
+    SELECT COUNT(*) INTO user_count FROM app.user_account WHERE user_type = 'Doctor';
+    
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Doctor Seed Data Loaded';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Doctors: % records', doctor_count;
+    RAISE NOTICE 'User Accounts (Doctor): % records', user_count;
+    RAISE NOTICE '========================================';
+END $$;

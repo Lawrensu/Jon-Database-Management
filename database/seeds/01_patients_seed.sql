@@ -2,12 +2,9 @@
 -- COS 20031 Database Design Project
 -- Author: [Cherylynn Cassidy]
 
--- ============================================================================
--- PATIENT SAMPLE DATA
--- ============================================================================
-
--- Set search path to use 'app' schema
 SET search_path TO app, public;
+
+BEGIN;
 
 WITH params AS (
   SELECT
@@ -21,119 +18,105 @@ WITH params AS (
       'Abdullah','Rahman','Chen','Menon','Hassan','Lim','Tan','Kumar','Singh','Sharma',
       'Nair','Patel','Lee','Gomez','Ng','Ong','Sulaiman','Mohamad','Aziz','Mustafa'
     ]::text[] AS last_names,
-    ARRAY['bin','binti','a/l','a/p','']::text[] AS middle_names,
     ARRAY['Bukit Bintang','Tun Razak','Jalan Ampang','Cheras','Bangsar','SS2','Damansara','Subang Jaya','Shah Alam','Kelana Jaya']::text[] AS streets,
     ARRAY['Kuala Lumpur','Petaling Jaya','Subang Jaya','Shah Alam']::text[] AS cities,
     ARRAY['Selangor','Kuala Lumpur']::text[] AS states,
-    ARRAY['53100','50450','50400','46000','40150','47301','40100','68000','68100','43200']::text[] AS postals,
-    ARRAY['O+','A+','B+','AB+','A-','B-','O-','AB-']::text[] AS bloods,
-    ARRAY['12','13','14','16','17','18','19']::text[] AS mobile_prefixes
+    ARRAY['53100','50450','50400','46000','40150','47301','40100','68000','68100','43200']::text[] AS postals
 ),
 gen AS (
   SELECT
     g,
-    -- indexing helpers
     params.first_names[((g-1) % cardinality(params.first_names)) + 1] AS first_name,
     params.last_names[((g-1) % cardinality(params.last_names)) + 1] AS last_name,
-    params.middle_names[((g-1) % cardinality(params.middle_names)) + 1] AS middle_name,
     params.streets[((g-1) % cardinality(params.streets)) + 1] AS street,
     params.cities[((g-1) % cardinality(params.cities)) + 1] AS city,
     params.states[((g-1) % cardinality(params.states)) + 1] AS state,
     params.postals[((g-1) % cardinality(params.postals)) + 1] AS postal_code,
-    -- renamed to avoid duplicate alias later
-    params.bloods[((g-1) % cardinality(params.bloods)) + 1] AS candidate_blood,
-    params.mobile_prefixes[((g-1) % cardinality(params.mobile_prefixes)) + 1] AS mobile_prefix,
-    -- age distribution: children (~20%), teens (~10%), adults (~50%), seniors (~20%)
     CASE
-      WHEN (g % 10) < 2 THEN floor(random()*13)::int                         -- 0-12
-      WHEN (g % 10) < 4 THEN (floor(random()*5)::int + 13)                  -- 13-17
-      WHEN (g % 10) < 9 THEN (floor(random()*47)::int + 18)                 -- 18-64
-      ELSE (floor(random()*26)::int + 65)                                   -- 65-90
+      WHEN (g % 10) < 2 THEN floor(random()*13)::int
+      WHEN (g % 10) < 4 THEN (floor(random()*5)::int + 13)
+      WHEN (g % 10) < 9 THEN (floor(random()*47)::int + 18)
+      ELSE (floor(random()*26)::int + 65)
     END AS age_years,
-    -- generate phone numbers
-    CASE
-      WHEN random() < 0.8
-      THEN '+60-' || params.mobile_prefixes[((g-1) % cardinality(params.mobile_prefixes)) + 1] || '-' ||
-           lpad((floor(random()*900)::int + 100)::text,3,'0') || '-' || lpad((floor(random()*10000)::int)::text,4,'0')
-      ELSE '+60-3-' || lpad((floor(random()*9000)::int + 1000)::text,4,'0') || '-' || lpad((floor(random()*10000)::int)::text,4,'0')
-    END AS phone_primary,
-    -- phone_secondary is optional
-    CASE WHEN random() < 0.45 THEN
-      '+60-' || params.mobile_prefixes[((g-1) % cardinality(params.mobile_prefixes)) + 1] || '-' ||
-      lpad((floor(random()*900)::int + 100)::text,3,'0') || '-' || lpad((floor(random()*10000)::int)::text,4,'0')
-    ELSE NULL END AS phone_secondary,
-    -- address line generation
+    (60120000000::bigint + floor(random() * 99999999)::bigint) AS phone_num,
+    (60130000000::bigint + floor(random() * 99999999)::bigint) AS emergency_phone,
     ('No. ' || (100 + ((g*13) % 900))::text) AS address_line1,
     CASE WHEN random() < 0.35 THEN ('Apartment ' || ((g % 30) + 1)::text) ELSE NULL END AS address_line2,
-    -- emergency contact
     ('EC ' || params.last_names[((g-1) % cardinality(params.last_names)) + 1] || ' ' || ((g % 7)+1)::text) AS emergency_contact_name,
-    CASE
-      WHEN random() < 0.85
-      THEN '+60-' || params.mobile_prefixes[((g+3) % cardinality(params.mobile_prefixes)) + 1] || '-' ||
-           lpad((floor(random()*900)::int + 100)::text,3,'0') || '-' || lpad((floor(random()*10000)::int)::text,4,'0')
-      ELSE '+60-3-' || lpad((floor(random()*9000)::int + 1000)::text,4,'0') || '-' || lpad((floor(random()*10000)::int)::text,4,'0')
-    END AS emergency_contact_phone,
-    -- relationship inferred from age
-    CASE
-      WHEN ((CASE WHEN (g % 10) < 2 THEN floor(random()*13)::int WHEN (g % 10) < 4 THEN (floor(random()*5)::int + 13) WHEN (g % 10) < 9 THEN (floor(random()*47)::int + 18) ELSE (floor(random()*26)::int + 65) END) < 18)
-        THEN 'Parent'
-      WHEN ((g % 10) BETWEEN 4 AND 8) THEN (CASE WHEN random() < 0.6 THEN 'Spouse' ELSE 'Sibling' END)
-      ELSE (CASE WHEN random() < 0.7 THEN 'Child' ELSE 'Spouse' END)
-    END AS emergency_contact_relationship,
-    -- vitals
-    round((random()*170 + 50)::numeric,1) AS height_cm,
-    round((random()*197 + 3)::numeric,1) AS weight_kg,
-    -- registration date in last ~18 months
-    (CURRENT_DATE - ((floor(random()*540)::int) * INTERVAL '1 day'))::date AS registration_date,
-    -- add a random value for weighted blood selection
-    random() AS r_blood
-    -- removed duplicate CASE ... AS blood_type placeholder
+    (CURRENT_DATE - ((floor(random()*540)::int) * INTERVAL '1 day'))::date AS registration_date
   FROM generate_series(1,200) g
   CROSS JOIN params
+),
+user_inserts AS (
+  INSERT INTO app.user_account (
+    username, 
+    password, 
+    user_type, 
+    first_name, 
+    last_name, 
+    email, 
+    is_active, 
+    created_at
+  )
+  SELECT
+    lower(first_name || '.' || last_name || g::text) AS username,
+    decode('736565642d70617373776f7264', 'hex') AS password,
+    'Patient'::user_type_enum AS user_type,
+    first_name,
+    last_name,
+    lower(first_name || '.' || last_name || g::text || '@pakartech.com') AS email,
+    TRUE AS is_active,
+    registration_date::timestamp AS created_at
+  FROM gen
+  ON CONFLICT (username) DO NOTHING
+  RETURNING user_id, username
 )
--- Replace the placeholder blood_type with weighted assignment in the outer INSERT SELECT below
--- Map generated fields to the core schema `app.patient` (singular).
--- The core table expects: patient_id, first_name, last_name, email, phone_num, address,
--- birth_date, gender, emergency_contact, emergency_phone, insurance_num, created_at
--- We intentionally drop unsupported fields (blood_type, height_cm, etc.) here to keep seeds
--- compatible with the authoritative schema in `database/project/01_core_schema.sql`.
--- Insert into the authoritative `app.patient` table (schema v2.0)
--- Columns present: patient_id, user_id, phone_num, birth_date, gender, address,
--- emergency_contact_name, emergency_contact_phone, created_at, updated_at
--- Create minimal user_account rows for patients so names/emails are preserved
-INSERT INTO app.user_account (user_id, username, password_hash, user_type, is_active, created_at)
+INSERT INTO app.patient (
+  user_id,
+  doctor_id,
+  phone_num,
+  birth_date,
+  gender,
+  address,
+  emergency_contact_name,
+  emergency_phone,
+  created_at,
+  updated_at
+)
 SELECT
-  'USER' || to_char(CURRENT_DATE,'YYYY') || LPAD(g::text,4,'0') AS user_id,
-  lower(first_name || '.' || last_name || '@pakartech.com') AS username,
-  'seed-password-hash' AS password_hash,
-  'Patient' AS user_type,
-  TRUE AS is_active,
-  registration_date::timestamp AT TIME ZONE 'UTC' AS created_at
+  ui.user_id,
+  NULL AS doctor_id,
+  gen.phone_num,
+  (CURRENT_DATE - ((gen.age_years * 365) + floor(random() * 365)::int) * INTERVAL '1 day')::timestamp AS birth_date,
+  CASE (gen.g % 3)
+    WHEN 0 THEN 'Male'::gender_enum
+    WHEN 1 THEN 'Female'::gender_enum
+    ELSE 'Other'::gender_enum
+  END AS gender,
+  (gen.address_line1 || COALESCE(' ' || gen.address_line2, '') || ', ' || gen.city || ', ' || gen.state || ' ' || gen.postal_code) AS address,
+  gen.emergency_contact_name,
+  gen.emergency_phone,
+  gen.registration_date::timestamp AS created_at,
+  gen.registration_date::timestamp AS updated_at
 FROM gen
+JOIN user_inserts ui ON ui.username = lower(gen.first_name || '.' || gen.last_name || gen.g::text)
 ON CONFLICT (user_id) DO NOTHING;
 
-INSERT INTO app.patient (
-  patient_id, user_id, phone_num, birth_date, gender, address,
-  emergency_contact_name, emergency_contact_phone, created_at
-)
-SELECT
-  -- patient_id e.g. PT20250001
-  'PT' || to_char(CURRENT_DATE,'YYYY') || LPAD(g::text,4,'0') AS patient_id,
-  -- link to the corresponding user_account UUID id
-  (SELECT id FROM app.user_account WHERE user_id = 'USER' || to_char(CURRENT_DATE,'YYYY') || LPAD(g::text,4,'0')) AS user_id,
-  -- use the generated primary phone as phone_num
-  phone_primary AS phone_num,
-  -- dob from age_years with an added random day offset within the year
-  (CURRENT_DATE - ((age_years * 365) + floor(random() * 365)::int) * INTERVAL '1 day')::date AS birth_date,
-  -- gender rotate with reasonable distribution
-  (CASE WHEN (g % 3) = 1 THEN 'Male' WHEN (g % 3) = 2 THEN 'Female' ELSE 'Other' END) AS gender,
-  -- combine address parts into a single address column used by core schema
-  (address_line1 || COALESCE(' ' || address_line2, '') || ', ' || city || ', ' || state || ' ' || postal_code) AS address,
-  emergency_contact_name,
-  emergency_contact_phone,
-  registration_date::timestamp AT TIME ZONE 'UTC' AS created_at
-FROM gen
-ON CONFLICT (patient_id) DO NOTHING;
+COMMIT;
 
--- quick verification message (select row count from inserted set is environment-specific)
-SELECT '01_patients_seed: completed (up to 200 records inserted, duplicates skipped).' AS info;
+-- Verification
+DO $$
+DECLARE
+    patient_count INT;
+    user_count INT;
+BEGIN
+    SELECT COUNT(*) INTO patient_count FROM app.patient;
+    SELECT COUNT(*) INTO user_count FROM app.user_account WHERE user_type = 'Patient';
+    
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Patient Seed Data Loaded';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Patients: % records', patient_count;
+    RAISE NOTICE 'User Accounts (Patient): % records', user_count;
+    RAISE NOTICE '========================================';
+END $$;
