@@ -159,6 +159,7 @@ DO $$ DECLARE
     total_tests INT;
     passed_tests INT;
     failed_tests INT;
+    failure_record RECORD;
 BEGIN
     RAISE NOTICE '========================================';
     RAISE NOTICE 'TEST REPORT SUMMARY';
@@ -178,7 +179,12 @@ BEGIN
         RAISE NOTICE 'FAILURES:';
         RAISE NOTICE '========================================';
         
-        RETURN QUERY EXECUTE 'SELECT test_suite || '': '' || test_name || '' - '' || error_message FROM test_failures ORDER BY failure_id';
+        -- Loop through failures and print them
+        FOR failure_record IN 
+            SELECT test_suite, test_name, error_message FROM test_failures ORDER BY failure_id
+        LOOP
+            RAISE NOTICE '% - % - %', failure_record.test_suite, failure_record.test_name, failure_record.error_message;
+        END LOOP;
     END IF;
     
     IF failed_tests > 0 THEN
