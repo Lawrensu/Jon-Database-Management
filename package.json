@@ -30,8 +30,9 @@
     "seeds:patients": "type database\\seeds\\01_patients_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "seeds:doctors": "type database\\seeds\\02_doctors_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "seeds:admins": "type database\\seeds\\03_admins_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
-    "seeds:run": "npm run seeds:reference && npm run seeds:patients && npm run seeds:doctors && npm run seeds:admins",
-    
+    "seeds:prescriptions": "type database\\seeds\\04_prescriptions_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
+    "seeds:run": "npm run seeds:reference && npm run seeds:patients && npm run seeds:doctors && npm run seeds:admins && npm run seeds:prescriptions",
+
     "queries:validate": "type database\\queries\\00_validation_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "queries:validate:verbose": "type database\\queries\\00_validation_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "queries:test": "type database\\queries\\test_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
@@ -41,6 +42,7 @@
     "perf:optimize": "type database\\performance\\02_advanced_indexes.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "perf:after": "type database\\performance\\03_after_benchmark.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "perf:report": "type database\\performance\\04_comparison_report.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
+    "perf:demo": "type database\\performance\\05_demonstration.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
     
     "migrate:up": "for file in database/migrations/*.sql; do type \"$file\" | npm run sql:run; done",
     

@@ -1,7 +1,7 @@
 -- ============================================================================
--- PAKAR Tech Healthcare - Performance Baseline (This is BEFORE Optimization)
+-- PAKAR Tech Healthcare - Performance AFTER Optimization
 -- COS 20031 Database Design Project
--- Purpose: Capture performance metrics before optimization
+-- Purpose: Re-measure performance AFTER creating advanced indexes
 -- Author: Lawrence Lian anak Matius Ding
 -- ============================================================================
 
@@ -10,24 +10,7 @@ SET search_path TO app, public;
 \timing on
 
 -- ============================================================================
--- CREATE PERFORMANCE TRACKING SCHEMA
--- ============================================================================
-
-CREATE SCHEMA IF NOT EXISTS performance;
-
-CREATE TABLE IF NOT EXISTS performance.benchmark_metrics (
-    benchmark_id SERIAL PRIMARY KEY,
-    test_name TEXT NOT NULL,
-    query_text TEXT,
-    execution_time_ms NUMERIC,
-    rows_returned INT,
-    query_plan TEXT,
-    optimization_stage TEXT DEFAULT 'BEFORE',
-    measured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- ============================================================================
--- CLEANUP: Delete old baseline data before running new baseline
+-- CLEANUP: Delete old AFTER data before running new benchmark
 -- ============================================================================
 
 DO $$
@@ -35,20 +18,50 @@ DECLARE
     deleted_count INT;
 BEGIN
     DELETE FROM performance.benchmark_metrics
-    WHERE optimization_stage = 'BEFORE';
+    WHERE optimization_stage = 'AFTER';
     
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
     
     RAISE NOTICE '========================================';
-    RAISE NOTICE 'BASELINE BENCHMARK (BEFORE OPTIMIZATION)';
+    RAISE NOTICE 'AFTER-OPTIMIZATION BENCHMARK';
     RAISE NOTICE '========================================';
-    RAISE NOTICE 'Deleted % old BEFORE benchmarks', deleted_count;
-    RAISE NOTICE 'Starting fresh baseline measurements...';
+    RAISE NOTICE 'Deleted % old AFTER benchmarks', deleted_count;
+    RAISE NOTICE 'Re-running same benchmarks...';
     RAISE NOTICE '';
 END $$;
 
 -- ============================================================================
--- BENCHMARK TEST 1: Patient Search by Age and Gender
+-- VERIFY OPTIMIZATION INDEXES EXIST
+-- ============================================================================
+
+DO $$
+DECLARE
+    idx_count INT;
+BEGIN
+    SELECT COUNT(*) INTO idx_count
+    FROM pg_indexes
+    WHERE schemaname = 'app'
+    AND indexname IN (
+        'idx_patient_birth_gender_composite',
+        'idx_prescription_active_only',
+        'idx_medication_fulltext_search',
+        'idx_patient_birth_covering'
+    );
+    
+    IF idx_count < 4 THEN
+        RAISE EXCEPTION 'Optimization indexes not found! Run 02_advanced_indexes.sql first';
+    END IF;
+    
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'AFTER-OPTIMIZATION BENCHMARK';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Advanced indexes detected: %', idx_count;
+    RAISE NOTICE 'Re-running same benchmarks...';
+    RAISE NOTICE '';
+END $$;
+
+-- ============================================================================
+-- BENCHMARK TEST 1: Patient Search by Birth Date and Gender (COMPOSITE INDEX)
 -- ============================================================================
 
 DO $$
@@ -59,53 +72,12 @@ DECLARE
     row_count INT;
     test_query TEXT;
 BEGIN
-    RAISE NOTICE '========================================';
-    RAISE NOTICE 'BENCHMARK 1: Patient Search (Age + Gender)';
-    RAISE NOTICE '========================================';
-    
-    test_query := 'SELECT * FROM app.patient p
-        JOIN app.user_account u ON p.user_id = u.user_id
-        WHERE p.birth_date BETWEEN ''1950-01-01'' AND ''1974-12-31''
-        AND p.gender = ''Male''';
-    
-    -- Measure execution time
-    start_time := clock_timestamp();
-    
-    EXECUTE 'SELECT COUNT(*) FROM (' || test_query || ') AS subquery'
-    INTO row_count;
-    
-    end_time := clock_timestamp();
-    duration_ms := EXTRACT(EPOCH FROM (end_time - start_time)) * 1000;
-    
-    -- Store baseline
-    INSERT INTO performance.benchmark_metrics 
-        (test_name, query_text, execution_time_ms, rows_returned, optimization_stage)
-    VALUES 
-        ('Patient Search (Age + Gender)', test_query, duration_ms, row_count, 'BEFORE');
-    
-    RAISE NOTICE 'Execution Time: % ms', ROUND(duration_ms, 2);
-    RAISE NOTICE 'Rows Returned: %', row_count;
-    RAISE NOTICE 'Query Type: Sequential Scan (SLOW - no index on calculated age)';
-    RAISE NOTICE '';
-END $$;
-
--- ============================================================================
--- BENCHMARK TEST 2: Patient Search by Birth Date Range
--- ============================================================================
-
-DO $$
-DECLARE
-    start_time TIMESTAMP;
-    end_time TIMESTAMP;
-    duration_ms NUMERIC;
-    row_count INT;
-    test_query TEXT;
-BEGIN
-    RAISE NOTICE 'BENCHMARK 2: Patient Search (Birth Date Range)';
+    RAISE NOTICE 'BENCHMARK 1: Patient Search (Birth Date + Gender)';
     RAISE NOTICE '========================================';
     
     test_query := 'SELECT * FROM app.patient
-        WHERE birth_date BETWEEN ''1950-01-01'' AND ''1980-12-31''';
+        WHERE birth_date BETWEEN ''1950-01-01'' AND ''1974-12-31''  
+        AND gender = ''Male''';
     
     start_time := clock_timestamp();
     
@@ -118,16 +90,16 @@ BEGIN
     INSERT INTO performance.benchmark_metrics 
         (test_name, query_text, execution_time_ms, rows_returned, optimization_stage)
     VALUES 
-        ('Patient Search (Birth Date Range)', test_query, duration_ms, row_count, 'BEFORE');
+        ('Patient Search (Birth Date + Gender)', test_query, duration_ms, row_count, 'AFTER');
     
     RAISE NOTICE 'Execution Time: % ms', ROUND(duration_ms, 2);
     RAISE NOTICE 'Rows Returned: %', row_count;
-    RAISE NOTICE 'Query Type: Index Scan (uses existing idx_patient_birth_date)';
+    RAISE NOTICE 'Expected: Uses idx_patient_birth_gender_composite (composite)';
     RAISE NOTICE '';
 END $$;
 
 -- ============================================================================
--- BENCHMARK TEST 3: Active Prescriptions Query
+-- BENCHMARK TEST 2: Birth Date Range Query (COVERING INDEX)
 -- ============================================================================
 
 DO $$
@@ -138,7 +110,45 @@ DECLARE
     row_count INT;
     test_query TEXT;
 BEGIN
-    RAISE NOTICE 'BENCHMARK 3: Active Prescriptions';
+    RAISE NOTICE 'BENCHMARK 2: Birth Date Range (Covering Index)';
+    RAISE NOTICE '========================================';
+    
+    test_query := 'SELECT birth_date, gender, user_id, patient_id 
+        FROM app.patient
+        WHERE birth_date > ''1980-01-01''';
+    
+    start_time := clock_timestamp();
+    
+    EXECUTE 'SELECT COUNT(*) FROM (' || test_query || ') AS subquery'
+    INTO row_count;
+    
+    end_time := clock_timestamp();
+    duration_ms := EXTRACT(EPOCH FROM (end_time - start_time)) * 1000;
+    
+    INSERT INTO performance.benchmark_metrics 
+        (test_name, query_text, execution_time_ms, rows_returned, optimization_stage)
+    VALUES 
+        ('Patient Search (Birth Date Range)', test_query, duration_ms, row_count, 'AFTER');
+    
+    RAISE NOTICE 'Execution Time: % ms', ROUND(duration_ms, 2);
+    RAISE NOTICE 'Rows Returned: %', row_count;
+    RAISE NOTICE 'Expected: Index-only scan using idx_patient_birth_covering';
+    RAISE NOTICE '';
+END $$;
+
+-- ============================================================================
+-- BENCHMARK TEST 3: Active Prescriptions (PARTIAL INDEX)
+-- ============================================================================
+
+DO $$
+DECLARE
+    start_time TIMESTAMP;
+    end_time TIMESTAMP;
+    duration_ms NUMERIC;
+    row_count INT;
+    test_query TEXT;
+BEGIN
+    RAISE NOTICE 'BENCHMARK 3: Active Prescriptions (Partial Index)';
     RAISE NOTICE '========================================';
     
     test_query := 'SELECT * FROM app.prescription
@@ -155,16 +165,16 @@ BEGIN
     INSERT INTO performance.benchmark_metrics 
         (test_name, query_text, execution_time_ms, rows_returned, optimization_stage)
     VALUES 
-        ('Active Prescriptions', test_query, duration_ms, row_count, 'BEFORE');
+        ('Active Prescriptions', test_query, duration_ms, row_count, 'AFTER');
     
     RAISE NOTICE 'Execution Time: % ms', ROUND(duration_ms, 2);
     RAISE NOTICE 'Rows Returned: %', row_count;
-    RAISE NOTICE 'Query Type: Index Scan (uses existing idx_prescription_status)';
+    RAISE NOTICE 'Expected: Uses idx_prescription_active_only (60%% smaller)';
     RAISE NOTICE '';
 END $$;
 
 -- ============================================================================
--- BENCHMARK TEST 4: Medication Search (Full-Text Search)
+-- BENCHMARK TEST 4: Medication Search (GIN FULL-TEXT INDEX)
 -- ============================================================================
 
 DO $$
@@ -175,10 +185,10 @@ DECLARE
     row_count INT;
     test_query TEXT;
 BEGIN
-    RAISE NOTICE 'BENCHMARK 4: Medication Search (Full-Text BEFORE optimization)';
+    RAISE NOTICE 'BENCHMARK 4: Medication Search (Full-Text Index)';
     RAISE NOTICE '========================================';
     
-    -- Use the SAME full-text query in baseline (will be slow without GIN index)
+    -- Use GIN full-text index instead of LIKE
     test_query := 'SELECT * FROM app.medication
         WHERE to_tsvector(''english'', med_name || '' '' || COALESCE(med_desc, ''''))
         @@ to_tsquery(''english'', ''insulin | diabetes'')';
@@ -194,16 +204,16 @@ BEGIN
     INSERT INTO performance.benchmark_metrics 
         (test_name, query_text, execution_time_ms, rows_returned, optimization_stage)
     VALUES 
-        ('Medication Search (Full-Text)', test_query, duration_ms, row_count, 'BEFORE');
+        ('Medication Search (Full-Text)', test_query, duration_ms, row_count, 'AFTER');
     
     RAISE NOTICE 'Execution Time: % ms', ROUND(duration_ms, 2);
     RAISE NOTICE 'Rows Returned: %', row_count;
-    RAISE NOTICE 'Query Type: Sequential Scan (SLOW - no GIN index yet)';
+    RAISE NOTICE 'Expected: Bitmap Index Scan using idx_medication_fulltext_search';
     RAISE NOTICE '';
 END $$;
 
 -- ============================================================================
--- BENCHMARK TEST 5: Complex Patient Analytics (Expensive Query)
+-- BENCHMARK TEST 5: Patient Health Analytics (Complex Join)
 -- ============================================================================
 
 DO $$
@@ -238,60 +248,67 @@ BEGIN
     INSERT INTO performance.benchmark_metrics 
         (test_name, query_text, execution_time_ms, rows_returned, optimization_stage)
     VALUES 
-        ('Patient Health Analytics', test_query, duration_ms, row_count, 'BEFORE');
+        ('Patient Health Analytics', test_query, duration_ms, row_count, 'AFTER');
     
     RAISE NOTICE 'Execution Time: % ms', ROUND(duration_ms, 2);
     RAISE NOTICE 'Rows Returned: %', row_count;
-    RAISE NOTICE 'Query Type: Hash Join + Aggregate (EXPENSIVE)';
+    RAISE NOTICE 'Expected: Hash Join + Aggregate (uses FK indexes)';
     RAISE NOTICE '';
 END $$;
 
 -- ============================================================================
--- BASELINE SUMMARY
+-- AFTER-OPTIMIZATION SUMMARY
 -- ============================================================================
 
 DO $$
 DECLARE
-    total_time NUMERIC;
-    avg_time NUMERIC;
-    slowest_query TEXT;
-    slowest_time NUMERIC;
+    total_time_before NUMERIC;
+    total_time_after NUMERIC;
+    avg_time_before NUMERIC;
+    avg_time_after NUMERIC;
+    improvement_pct NUMERIC;
 BEGIN
     SELECT 
         SUM(execution_time_ms),
         AVG(execution_time_ms)
-    INTO total_time, avg_time
+    INTO total_time_before, avg_time_before
     FROM performance.benchmark_metrics
     WHERE optimization_stage = 'BEFORE';
     
-    SELECT test_name, execution_time_ms
-    INTO slowest_query, slowest_time
+    SELECT 
+        SUM(execution_time_ms),
+        AVG(execution_time_ms)
+    INTO total_time_after, avg_time_after
     FROM performance.benchmark_metrics
-    WHERE optimization_stage = 'BEFORE'
-    ORDER BY execution_time_ms DESC
-    LIMIT 1;
+    WHERE optimization_stage = 'AFTER';
+    
+    improvement_pct := ((total_time_before - total_time_after) / NULLIF(total_time_before, 0)) * 100;
     
     RAISE NOTICE '========================================';
-    RAISE NOTICE 'BASELINE PERFORMANCE SUMMARY';
+    RAISE NOTICE 'AFTER-OPTIMIZATION SUMMARY';
     RAISE NOTICE '========================================';
-    RAISE NOTICE 'Total Execution Time: % ms', ROUND(total_time, 2);
-    RAISE NOTICE 'Average Query Time: % ms', ROUND(avg_time, 2);
-    RAISE NOTICE 'Slowest Query: %', slowest_query;
-    RAISE NOTICE 'Slowest Time: % ms', ROUND(slowest_time, 2);
+    RAISE NOTICE 'Total Time BEFORE: % ms', ROUND(total_time_before, 2);
+    RAISE NOTICE 'Total Time AFTER: % ms', ROUND(total_time_after, 2);
+    RAISE NOTICE 'Time Saved: % ms', ROUND(total_time_before - total_time_after, 2);
     RAISE NOTICE '';
-    RAISE NOTICE '📊 Baseline captured to: performance.benchmark_metrics';
-    RAISE NOTICE '📌 Next step: Run 02_advanced_indexes.sql to apply optimizations';
+    RAISE NOTICE 'Average Time BEFORE: % ms', ROUND(avg_time_before, 2);
+    RAISE NOTICE 'Average Time AFTER: % ms', ROUND(avg_time_after, 2);
+    RAISE NOTICE '';
+    RAISE NOTICE '   PERFORMANCE IMPROVEMENT: %%%', ROUND(improvement_pct, 2);
+    RAISE NOTICE '';
+    RAISE NOTICE '   Next step: Run 04_comparison_report.sql';
+    RAISE NOTICE '   This will show side-by-side comparison';
     RAISE NOTICE '========================================';
 END $$;
 
--- Show baseline results
+-- Show after results
 SELECT 
     test_name AS "Test Name",
     ROUND(execution_time_ms, 2) AS "Time (ms)",
     rows_returned AS "Rows",
     optimization_stage AS "Stage"
 FROM performance.benchmark_metrics
-WHERE optimization_stage = 'BEFORE'
-ORDER BY execution_time_ms DESC;
+WHERE optimization_stage = 'AFTER'
+ORDER BY test_name;
 
 COMMIT;
