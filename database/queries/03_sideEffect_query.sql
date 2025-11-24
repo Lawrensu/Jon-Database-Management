@@ -1,5 +1,6 @@
 -- PAKAR Tech Healthcare - Side Effects Analysis
 -- COS 20031 Database Design Project
+-- Author: Jason Hernando Kwee
 -- Purpose: Query side effects through medication → side_effect → condition linkage
 
 SET search_path TO app, public;

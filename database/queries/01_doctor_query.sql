@@ -1,5 +1,6 @@
 -- PAKAR Tech Healthcare - Doctor Use Case Queries
 -- COS 20031 Database Design Project
+-- Author: Jason Hernando Kwee
 
 SET search_path TO app, public;
 
@@ -7,9 +8,6 @@ SET search_path TO app, public;
 \echo '👨‍⚕️ Doctor Use Case Queries'
 \echo '========================================'
 
--- ============================================================================
--- STEP 1: Doctor views their profile
--- ============================================================================
 
 \echo ''
 \echo 'STEP 1: Doctor Profile'
@@ -36,9 +34,6 @@ FROM app.doctor d
 JOIN app.user_account u ON d.user_id = u.user_id
 WHERE d.doctor_id IN (SELECT doctor_id FROM doctor_with_patients);
 
--- ============================================================================
--- STEP 2: Doctor views assigned patients
--- ============================================================================
 
 \echo ''
 \echo 'STEP 2: Assigned Patients'
@@ -66,9 +61,6 @@ JOIN app.user_account u ON p.user_id = u.user_id
 WHERE p.doctor_id IN (SELECT doctor_id FROM selected_doctor)
 ORDER BY u.last_name, u.first_name;
 
--- ============================================================================
--- STEP 3: Doctor views patient symptoms
--- ============================================================================
 
 \echo ''
 \echo 'STEP 3: Patient Symptoms'
@@ -99,9 +91,6 @@ WHERE p.doctor_id IN (SELECT doctor_id FROM selected_doctor)
 ORDER BY ps.date_reported DESC
 LIMIT 10;
 
--- ============================================================================
--- STEP 4: Doctor creates prescription (simulation)
--- ============================================================================
 
 \echo ''
 \echo 'STEP 4: Doctor Creates Prescription'
@@ -188,9 +177,6 @@ BEGIN
     RAISE NOTICE '✅ Prescription version: %, Schedule added', v_prescription_version_id;
 END $$;
 
--- ============================================================================
--- STEP 5: Doctor assigns symptom to patient
--- ============================================================================
 
 \echo ''
 \echo 'STEP 5: Assign Symptom to Patient'
@@ -230,9 +216,6 @@ BEGIN
     RAISE NOTICE '✅ Assigned symptom "%" to patient "%"', v_symptom_name, v_patient_name;
 END $$;
 
--- ============================================================================
--- STEP 6: Create complete prescription workflow
--- ============================================================================
 
 \echo ''
 \echo 'STEP 6: Complete Prescription Workflow'
@@ -334,9 +317,6 @@ BEGIN
     RAISE NOTICE '✅ Complete workflow created successfully!';
 END $$;
 
--- ============================================================================
--- STEP 7: View complete prescription details
--- ============================================================================
 
 \echo ''
 \echo 'STEP 7: Complete Prescription Details'
@@ -367,9 +347,6 @@ JOIN app.user_account u_doctor ON d.user_id = u_doctor.user_id
 JOIN app.medication m ON pv.medication_id = m.medication_id
 WHERE pv.end_date IS NULL;
 
--- ============================================================================
--- SUMMARY
--- ============================================================================
 
 \echo ''
 \echo '============================================'

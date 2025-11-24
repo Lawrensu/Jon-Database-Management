@@ -1,15 +1,13 @@
 -- PAKAR Tech Healthcare - Patient Use Case Queries
 -- COS 20031 Database Design Project
+-- Author: Jason Hernando Kwee
 
 SET search_path TO app, public;
+
 
 \echo '========================================'
 \echo '🧑‍⚕️ Patient Use Case Queries'
 \echo '========================================'
-
--- ============================================================================
--- STEP 1: Patient views assigned doctor
--- ============================================================================
 
 \echo ''
 \echo 'STEP 1: Patient Assigned Doctor'
@@ -28,9 +26,6 @@ JOIN app.doctor d ON p.doctor_id = d.doctor_id
 JOIN app.user_account u ON d.user_id = u.user_id
 WHERE p.patient_id = (SELECT patient_id FROM app.patient LIMIT 1);
 
--- ============================================================================
--- STEP 2: Patient views their symptoms
--- ============================================================================
 
 \echo ''
 \echo 'STEP 2: Patient Symptoms'
@@ -53,9 +48,6 @@ JOIN app.condition c ON s.condition_id = c.condition_id
 WHERE ps.patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
 ORDER BY ps.date_reported DESC;
 
--- ============================================================================
--- STEP 3: Patient views prescriptions
--- ============================================================================
 
 \echo ''
 \echo 'STEP 3: Patient Prescriptions'
@@ -79,9 +71,6 @@ WHERE pr.patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
   AND pv.end_date IS NULL  -- Current version only
 ORDER BY pr.created_date DESC;
 
--- ============================================================================
--- STEP 4: Patient views medication side effects
--- ============================================================================
 
 \echo ''
 \echo 'STEP 4: Medication Side Effects'
@@ -104,9 +93,6 @@ WHERE pr.patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
   AND pv.end_date IS NULL
 ORDER BY m.med_name, mse.frequency;
 
--- ============================================================================
--- STEP 5: Patient views medication schedule
--- ============================================================================
 
 \echo ''
 \echo 'STEP 5: Medication Schedule'
@@ -132,9 +118,6 @@ WHERE pr.patient_id = (SELECT patient_id FROM app.patient LIMIT 1)  -- ✅ Filte
 ORDER BY pv.start_date DESC
 LIMIT 10;
 
--- ============================================================================
--- AUTO-UPDATE: Mark missed medications
--- ============================================================================
 
 \echo ''
 \echo '🔄 Auto-updating missed medications...'
@@ -142,9 +125,6 @@ LIMIT 10;
 -- Call the function to mark missed meds
 SELECT app.mark_missed_medications();
 
--- ============================================================================
--- STEP 6: Patient medication adherence log
--- ============================================================================
 
 \echo ''
 \echo 'STEP 6: Medication Adherence Log'
@@ -170,9 +150,6 @@ WHERE ml.patient_id = (SELECT patient_id FROM app.patient LIMIT 1)
 ORDER BY ml.scheduled_time DESC
 LIMIT 10;
 
--- ============================================================================
--- STEP 7: Patient updates medication log status
--- ============================================================================
 
 \echo ''
 \echo 'STEP 7: Patient Updates Medication Log'
@@ -208,9 +185,6 @@ BEGIN
     END IF;
 END $$;
 
--- ============================================================================
--- STEP 8: Patient reports own symptom
--- ============================================================================
 
 \echo ''
 \echo 'STEP 8: Patient Reports Symptom'
@@ -246,9 +220,6 @@ BEGIN
     RAISE NOTICE '✅ Patient reported symptom: %', v_symptom_name;
 END $$;
 
--- ============================================================================
--- STEP 9: Patient views updated medication log
--- ============================================================================
 
 \echo ''
 \echo 'STEP 9: Updated Medication Log'

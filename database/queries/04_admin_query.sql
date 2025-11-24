@@ -1,5 +1,6 @@
 -- PAKAR Tech Healthcare - Admin Use Case Queries
 -- COS 20031 Database Design Project
+-- Author: Jason Hernando Kwee
 
 SET search_path TO app, public;
 
@@ -7,9 +8,6 @@ SET search_path TO app, public;
 \echo '👨‍💼 Admin Use Case Queries'
 \echo '========================================'
 
--- ============================================================================
--- STEP 1: Admin assigns patient to doctor
--- ============================================================================
 
 \echo ''
 \echo 'STEP 1: Assign Patient to Doctor'
@@ -48,9 +46,6 @@ BEGIN
     END IF;
 END $$;
 
--- ============================================================================
--- STEP 2: View all patient assignments
--- ============================================================================
 
 \echo ''
 \echo 'STEP 2: All Patient-Doctor Assignments'
@@ -70,9 +65,6 @@ LEFT JOIN app.user_account u_doctor ON d.user_id = u_doctor.user_id
 ORDER BY d.doctor_id, p.patient_id
 LIMIT 20;
 
--- ============================================================================
--- STEP 3: View unassigned patients
--- ============================================================================
 
 \echo ''
 \echo 'STEP 3: Unassigned Patients'
