@@ -83,6 +83,16 @@ jobs:
             fi
           done
 
+      - name: Install Data Science Analytics
+        run: npm run analytics:install
+        
+      - name: Verify Analytics Installation
+        run: npm run analytics:verify
+
+      - name: Run Analytics Pipeline (Optional)
+        run: npm run analytics:pipeline
+        continue-on-error: true  # Don't fail if pipeline has warnings
+
       - name: Run database tests
         env:
           PGPASSWORD: JonathanBangerDatabase26!
