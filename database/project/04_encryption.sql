@@ -1,6 +1,7 @@
 -- PAKAR Tech Healthcare - Complete Encryption Setup
 -- COS 20031 Database Design Project
 -- Purpose: Enable pgcrypto and encrypt sensitive data
+-- Author: Jason Hernando Kwee
 
 BEGIN;
 

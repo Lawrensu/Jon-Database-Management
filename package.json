@@ -37,14 +37,23 @@
     "functions:missed": "type database\\project\\03_auto_missed_trigger.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
     "functions:run-missed": "docker compose exec postgres psql -U jondb_admin -d jon_database_dev -c \"SELECT app.mark_missed_medications();\"",
 
-    "seeds:reference": "type database\\seeds\\00_reference_data.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
-    "seeds:patients": "type database\\seeds\\01_patients_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
-    "seeds:doctors": "type database\\seeds\\02_doctors_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
-    "seeds:admins": "type database\\seeds\\03_admins_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
-    "seeds:test-users": "type database\\seeds\\03_test_users.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
-    "seeds:run": "npm run seeds:reference && npm run seeds:patients && npm run seeds:doctors && npm run seeds:admins",
-    
     "encryption:full": "type database\\project\\04_encryption.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    
+    "seeds:test-users": "type database\\seeds\\03_test_users.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "seeds:prescriptions": "type database\\seeds\\04_prescriptions_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
+    "seeds:prescription-versions": "type database\\seeds\\05_prescription_versions_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
+    "seeds:medication-schedules": "type database\\seeds\\06_medication_schedules_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
+    "seeds:patient-symptoms": "type database\\seeds\\07_patient_symptoms_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
+    "seeds:medication-logs": "type database\\seeds\\08_medication_logs_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
+    "seeds:reminders": "type database\\seeds\\09_reminders_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
+    "seeds:run": "npm run seeds:reference && npm run seeds:patients && npm run seeds:doctors && npm run seeds:admins && npm run seeds:prescriptions && npm run seeds:prescription-versions && npm run seeds:medication-schedules && npm run seeds:patient-symptoms && npm run seeds:medication-logs && npm run seeds:reminders",
+
+
+    "perf:baseline": "type database\\performance\\01_baseline_benchmark.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
+    "perf:optimize": "type database\\performance\\02_advanced_indexes.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
+    "perf:after": "type database\\performance\\03_after_benchmark.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
+    "perf:report": "type database\\performance\\04_comparison_report.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
+    "perf:demo": "type database\\performance\\05_demonstration.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
     
     "migrate:up": "for file in database/migrations/*.sql; do type \"$file\" | npm run sql:run; done",
     

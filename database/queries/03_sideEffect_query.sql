@@ -5,53 +5,93 @@
 
 SET search_path TO app, public;
 
--- ============================================================================
--- QUERY 1: View All Side Effects with Condition Codes
--- ============================================================================
-\echo '============================================'
-\echo '📊 QUERY 1: All Side Effects with Condition Codes'
-\echo '============================================'
+\echo '========================================'
+\echo 'Side Effects Analysis'
+\echo '========================================'
 
-SELECT 
+-- ============================================================================
+-- QUERY 1: ALL SIDE EFFECTS (DEDUPLICATED)
+-- ============================================================================
+
+\echo ''
+\echo 'QUERY 1: All Side Effects (Condition-Based)'
+\echo '----------------------------------------'
+
+SELECT DISTINCT ON (c.condition_id)
     se.side_effect_id,
-    'C' || LPAD(c.condition_id::TEXT, 3, '0') AS condition_code,
+    c.condition_id,
     c.condition_name AS side_effect_name,
-    c.condition_desc AS side_effect_description,
-    COUNT(DISTINCT mse.medication_id) AS total_medications,
-    STRING_AGG(DISTINCT mse.frequency, ', ' ORDER BY mse.frequency) AS frequencies_reported
+    c.condition_desc AS description
 FROM app.side_effect se
 JOIN app.condition c ON se.condition_id = c.condition_id
-LEFT JOIN app.medication_side_effect mse ON se.side_effect_id = mse.side_effect_id
-GROUP BY se.side_effect_id, c.condition_id, c.condition_name, c.condition_desc
-ORDER BY total_medications DESC, c.condition_name;
+ORDER BY c.condition_id, se.side_effect_id;
 
 -- ============================================================================
--- QUERY 2: Medications and Their Side Effects (with Condition Codes)
+-- QUERY 2: MEDICATIONS WITH SIDE EFFECTS (DEDUPLICATED)
 -- ============================================================================
+
 \echo ''
-\echo '============================================'
-\echo '💊 QUERY 2: Medications with Side Effects'
-\echo '============================================'
+\echo 'QUERY 2: Medications with Side Effects (ID-Based Matching)'
+\echo '----------------------------------------'
 
 SELECT 
     m.medication_id,
     m.med_name,
     m.med_brand_name,
-    m.med_manufacturer,
-    'C' || LPAD(c.condition_id::TEXT, 3, '0') AS condition_code,
-    c.condition_name AS side_effect,
-    c.condition_desc AS side_effect_description,
+    se.side_effect_id,
+    c.condition_name AS side_effect_name,
     mse.frequency,
-    CASE mse.frequency
-        WHEN 'Common' THEN '⚠️ High Risk'
-        WHEN 'Uncommon' THEN '⚡ Moderate Risk'
-        WHEN 'Rare' THEN '✓ Low Risk'
-        ELSE '❓ Unknown'
-    END AS risk_level
+    c.condition_desc AS description
+FROM app.medication_side_effect mse
+JOIN app.medication m ON mse.medication_id = m.medication_id
+JOIN app.side_effect se ON mse.side_effect_id = se.side_effect_id
+JOIN app.condition c ON se.condition_id = c.condition_id
+WHERE m.medication_id IN (
+    SELECT DISTINCT ON (med_name) medication_id
+    FROM app.medication
+    ORDER BY med_name, medication_id
+)
+ORDER BY m.med_name, mse.frequency DESC, c.condition_name;
+
+-- ============================================================================
+-- QUERY 3: SIDE EFFECTS BY MEDICATION (DEDUPLICATED)
+-- ============================================================================
+
+\echo ''
+\echo 'QUERY 3: Side Effects by Medication'
+\echo '----------------------------------------'
+
+SELECT DISTINCT ON (m.med_name)
+    m.medication_id,
+    m.med_name,
+    m.med_brand_name,
+    (
+        SELECT COUNT(DISTINCT mse2.side_effect_id)
+        FROM app.medication_side_effect mse2
+        WHERE mse2.medication_id = m.medication_id
+    ) AS side_effect_count
+FROM app.medication m
+ORDER BY m.med_name, m.medication_id;
+
+\echo ''
+\echo '📊 Side Effects for Each Medication:'
+\echo '----------------------------------------'
+
+SELECT 
+    m.med_name,
+    m.med_brand_name,
+    c.condition_name AS side_effect,
+    mse.frequency,
+    c.condition_desc AS description
 FROM app.medication m
 JOIN app.medication_side_effect mse ON m.medication_id = mse.medication_id
 JOIN app.side_effect se ON mse.side_effect_id = se.side_effect_id
 JOIN app.condition c ON se.condition_id = c.condition_id
+WHERE m.medication_id IN (
+    SELECT DISTINCT ON (med_name) medication_id
+    FROM app.medication
+    ORDER BY med_name, medication_id
+)
 ORDER BY 
     m.med_name,
     CASE mse.frequency
@@ -63,253 +103,163 @@ ORDER BY
     c.condition_name;
 
 -- ============================================================================
--- QUERY 3: Specific Medication Side Effect Lookup
+-- QUERY 4: MEDICATIONS GROUPED BY SIDE EFFECT
 -- ============================================================================
+
 \echo ''
-\echo '============================================'
-\echo '🔍 QUERY 3: Side Effects for Specific Medication'
-\echo '============================================'
-\echo 'Example: Metformin Hydrochloride'
+\echo 'QUERY 4: Medications Grouped by Side Effect'
+\echo '----------------------------------------'
 
 SELECT 
-    m.med_name AS medication,
-    m.med_brand_name AS brand,
-    'C' || LPAD(c.condition_id::TEXT, 3, '0') AS condition_code,
     c.condition_name AS side_effect,
-    c.condition_desc AS description,
+    COUNT(DISTINCT m.med_name) AS medication_count,
+    STRING_AGG(DISTINCT m.med_name, ', ') AS medications,
+    STRING_AGG(DISTINCT mse.frequency, ', ') AS frequencies
+FROM app.medication_side_effect mse
+JOIN app.side_effect se ON mse.side_effect_id = se.side_effect_id
+JOIN app.condition c ON se.condition_id = c.condition_id
+JOIN app.medication m ON mse.medication_id = m.medication_id
+WHERE m.medication_id IN (
+    SELECT DISTINCT ON (med_name) medication_id
+    FROM app.medication
+    ORDER BY med_name, medication_id
+)
+GROUP BY c.condition_id, c.condition_name
+HAVING COUNT(DISTINCT m.med_name) > 1
+ORDER BY medication_count DESC, c.condition_name;
+
+-- ============================================================================
+-- QUERY 5: PATIENT PRESCRIPTIONS WITH POTENTIAL SIDE EFFECTS
+-- ============================================================================
+
+\echo ''
+\echo 'QUERY 5: Patient Prescriptions with Potential Side Effects'
+\echo '----------------------------------------'
+
+SELECT 
+    pr.patient_id,
+    u.first_name || ' ' || u.last_name AS patient_name,
+    m.med_name AS medication,
+    c.condition_name AS potential_side_effect,
     mse.frequency,
-    CASE 
-        WHEN mse.frequency = 'Common' THEN 'Occurs in >10% of patients'
-        WHEN mse.frequency = 'Uncommon' THEN 'Occurs in 1-10% of patients'
-        WHEN mse.frequency = 'Rare' THEN 'Occurs in <1% of patients'
-        ELSE 'Frequency not specified'
-    END AS frequency_detail
-FROM app.medication m
+    pr.status AS prescription_status
+FROM app.prescription pr
+JOIN app.prescription_version pv ON pr.prescription_id = pv.prescription_id
+JOIN app.medication m ON pv.medication_id = m.medication_id
 JOIN app.medication_side_effect mse ON m.medication_id = mse.medication_id
 JOIN app.side_effect se ON mse.side_effect_id = se.side_effect_id
 JOIN app.condition c ON se.condition_id = c.condition_id
-WHERE m.med_name = 'Metformin Hydrochloride'
-ORDER BY 
+JOIN app.patient p ON pr.patient_id = p.patient_id
+JOIN app.user_account u ON p.user_id = u.user_id
+WHERE pr.status = 'Active'
+  AND pv.end_date IS NULL
+  AND m.medication_id IN (
+      SELECT DISTINCT ON (med_name) medication_id
+      FROM app.medication
+      ORDER BY med_name, medication_id
+  )
+ORDER BY pr.patient_id, m.med_name, 
     CASE mse.frequency
         WHEN 'Common' THEN 1
         WHEN 'Uncommon' THEN 2
-        WHEN 'Rare' THEN 3
-    END;
+        ELSE 3
+    END
+LIMIT 20;
 
 -- ============================================================================
--- QUERY 4: Condition Lookup - Show if it's a Symptom AND/OR Side Effect
+-- QUERY 6: SIDE EFFECTS VS SYMPTOMS COMPARISON
 -- ============================================================================
+
 \echo ''
-\echo '============================================'
-\echo '🔬 QUERY 4: Conditions as Symptoms vs Side Effects'
-\echo '============================================'
+\echo 'QUERY 6: Conditions Used as Both Symptoms AND Side Effects'
+\echo '----------------------------------------'
 
-SELECT 
-    'C' || LPAD(c.condition_id::TEXT, 3, '0') AS condition_code,
+SELECT DISTINCT
+    c.condition_id,
     c.condition_name,
-    c.condition_desc,
+    EXISTS(SELECT 1 FROM app.symptom s WHERE s.condition_id = c.condition_id) AS is_symptom,
+    EXISTS(SELECT 1 FROM app.side_effect se WHERE se.condition_id = c.condition_id) AS is_side_effect,
     CASE 
-        WHEN EXISTS (SELECT 1 FROM app.symptom s WHERE s.condition_id = c.condition_id) 
-        THEN '✓ Yes' 
-        ELSE '✗ No' 
-    END AS is_symptom,
-    CASE 
-        WHEN EXISTS (SELECT 1 FROM app.side_effect se WHERE se.condition_id = c.condition_id) 
-        THEN '✓ Yes' 
-        ELSE '✗ No' 
-    END AS is_side_effect,
-    (SELECT COUNT(*) FROM app.patient_symptom ps 
-     JOIN app.symptom s ON ps.symptom_id = s.symptom_id 
-     WHERE s.condition_id = c.condition_id) AS times_reported_as_symptom,
-    (SELECT COUNT(*) FROM app.medication_side_effect mse 
-     JOIN app.side_effect se ON mse.side_effect_id = se.side_effect_id 
-     WHERE se.condition_id = c.condition_id) AS times_linked_to_medications
+        WHEN EXISTS(SELECT 1 FROM app.symptom s WHERE s.condition_id = c.condition_id)
+         AND EXISTS(SELECT 1 FROM app.side_effect se WHERE se.condition_id = c.condition_id)
+        THEN 'Both Symptom & Side Effect'
+        WHEN EXISTS(SELECT 1 FROM app.symptom s WHERE s.condition_id = c.condition_id)
+        THEN 'Symptom Only'
+        WHEN EXISTS(SELECT 1 FROM app.side_effect se WHERE se.condition_id = c.condition_id)
+        THEN 'Side Effect Only'
+        ELSE 'Neither'
+    END AS usage_type
 FROM app.condition c
 ORDER BY c.condition_name;
 
 -- ============================================================================
--- QUERY 5: Find Medications by Side Effect (Using Condition Code)
+-- SUMMARY STATISTICS (WITH DUPLICATE DETECTION)
 -- ============================================================================
+
 \echo ''
 \echo '============================================'
-\echo '🎯 QUERY 5: Find Medications Causing Specific Side Effect'
+\echo 'SIDE EFFECTS SUMMARY'
 \echo '============================================'
-\echo 'Example: Headache (C011)'
 
 DO $$
 DECLARE
-    v_condition_code TEXT := 'C011';  -- Change this to test different conditions
-    v_condition_id INT;
-    v_condition_name TEXT;
+    v_total_conditions INT;
+    v_total_side_effects INT;
+    v_unique_side_effects INT;
+    v_total_medications INT;
+    v_unique_medications INT;
+    v_total_links INT;
+    v_avg_side_effects_per_med NUMERIC;
+    v_duplicate_meds INT;
+    v_duplicate_side_effects INT;
 BEGIN
-    -- Extract numeric part from code (C011 -> 11)
-    v_condition_id := SUBSTRING(v_condition_code FROM 2)::INT;
+    SELECT COUNT(*) INTO v_total_conditions FROM app.condition;
+    SELECT COUNT(*) INTO v_total_side_effects FROM app.side_effect;
+    SELECT COUNT(DISTINCT condition_id) INTO v_unique_side_effects FROM app.side_effect;
+    SELECT COUNT(*) INTO v_total_medications FROM app.medication;
+    SELECT COUNT(DISTINCT med_name) INTO v_unique_medications FROM app.medication;
+    SELECT COUNT(*) INTO v_total_links FROM app.medication_side_effect;
     
-    SELECT condition_name INTO v_condition_name 
-    FROM app.condition 
-    WHERE condition_id = v_condition_id;
+    v_duplicate_meds := v_total_medications - v_unique_medications;
+    v_duplicate_side_effects := v_total_side_effects - v_unique_side_effects;
     
-    RAISE NOTICE 'Searching for medications causing: % (Code: %)', v_condition_name, v_condition_code;
+    v_avg_side_effects_per_med := ROUND(
+        (SELECT COUNT(*) FROM app.medication_side_effect)::NUMERIC / 
+        NULLIF(v_unique_medications, 0), 
+        2
+    );
     
-    -- Show results in a table
-    PERFORM * FROM (
-        SELECT 
-            m.med_name,
-            m.med_brand_name,
-            mse.frequency,
-            'C' || LPAD(c.condition_id::TEXT, 3, '0') AS condition_code,
-            c.condition_name AS side_effect
-        FROM app.medication m
-        JOIN app.medication_side_effect mse ON m.medication_id = mse.medication_id
-        JOIN app.side_effect se ON mse.side_effect_id = se.side_effect_id
-        JOIN app.condition c ON se.condition_id = c.condition_id
-        WHERE c.condition_id = v_condition_id
-        ORDER BY 
-            CASE mse.frequency
-                WHEN 'Common' THEN 1
-                WHEN 'Uncommon' THEN 2
-                WHEN 'Rare' THEN 3
-            END,
-            m.med_name
-    ) AS results;
+    RAISE NOTICE 'Total Conditions: %', v_total_conditions;
+    RAISE NOTICE '';
+    
+    RAISE NOTICE 'Medications:';
+    IF v_duplicate_meds > 0 THEN
+        RAISE NOTICE '   Total: % (% duplicates detected)', v_total_medications, v_duplicate_meds;
+        RAISE NOTICE '  Unique: %', v_unique_medications;
+    ELSE
+        RAISE NOTICE '  Total: % (no duplicates)', v_total_medications;
+    END IF;
+    RAISE NOTICE '';
+    
+    RAISE NOTICE 'Side Effects:';
+    IF v_duplicate_side_effects > 0 THEN
+        RAISE NOTICE '   Total Records: % (% duplicates detected)', v_total_side_effects, v_duplicate_side_effects;
+        RAISE NOTICE '  Unique: %', v_unique_side_effects;
+    ELSE
+        RAISE NOTICE '  Total: % (no duplicates)', v_total_side_effects;
+    END IF;
+    RAISE NOTICE '';
+    
+    RAISE NOTICE 'Medication-SideEffect Links: %', v_total_links;
+    RAISE NOTICE 'Avg Side Effects per Medication: %', v_avg_side_effects_per_med;
+    
+    IF v_duplicate_meds > 0 OR v_duplicate_side_effects > 0 THEN
+        RAISE NOTICE '';
+        RAISE NOTICE 'To fix duplicates, run: npm run schema:rebuild && npm run seeds:run';
+    END IF;
+    
+    RAISE NOTICE '========================================';
 END $$;
 
-SELECT 
-    m.med_name,
-    m.med_brand_name,
-    mse.frequency,
-    'C' || LPAD(c.condition_id::TEXT, 3, '0') AS condition_code,
-    c.condition_name AS side_effect
-FROM app.medication m
-JOIN app.medication_side_effect mse ON m.medication_id = mse.medication_id
-JOIN app.side_effect se ON mse.side_effect_id = se.side_effect_id
-JOIN app.condition c ON se.condition_id = c.condition_id
-WHERE c.condition_name = 'Headache'  -- Change this to test other conditions
-ORDER BY 
-    CASE mse.frequency
-        WHEN 'Common' THEN 1
-        WHEN 'Uncommon' THEN 2
-        WHEN 'Rare' THEN 3
-    END,
-    m.med_name;
-
--- ============================================================================
--- QUERY 6: Side Effects Statistics Dashboard
--- ============================================================================
 \echo ''
-\echo '============================================'
-\echo '📈 QUERY 6: Side Effects Statistics'
-\echo '============================================'
-
-WITH side_effect_stats AS (
-    SELECT 
-        'C' || LPAD(c.condition_id::TEXT, 3, '0') AS condition_code,
-        c.condition_name AS side_effect_name,
-        COUNT(DISTINCT mse.medication_id) AS medication_count,
-        COUNT(CASE WHEN mse.frequency = 'Common' THEN 1 END) AS common_count,
-        COUNT(CASE WHEN mse.frequency = 'Uncommon' THEN 1 END) AS uncommon_count,
-        COUNT(CASE WHEN mse.frequency = 'Rare' THEN 1 END) AS rare_count,
-        STRING_AGG(DISTINCT m.med_name, ', ' ORDER BY m.med_name) AS medications
-    FROM app.side_effect se
-    JOIN app.condition c ON se.condition_id = c.condition_id
-    LEFT JOIN app.medication_side_effect mse ON se.side_effect_id = mse.side_effect_id
-    LEFT JOIN app.medication m ON mse.medication_id = m.medication_id
-    GROUP BY c.condition_id, c.condition_name
-)
-SELECT 
-    condition_code,
-    side_effect_name,
-    medication_count,
-    common_count,
-    uncommon_count,
-    rare_count,
-    CASE 
-        WHEN medication_count >= 5 THEN '🔴 High Impact'
-        WHEN medication_count >= 3 THEN '🟡 Moderate Impact'
-        WHEN medication_count >= 1 THEN '🟢 Low Impact'
-        ELSE '⚪ No Data'
-    END AS impact_level,
-    CASE 
-        WHEN LENGTH(medications) > 100 
-        THEN LEFT(medications, 97) || '...'
-        ELSE medications
-    END AS medication_list
-FROM side_effect_stats
-ORDER BY medication_count DESC, side_effect_name;
-
--- ============================================================================
--- QUERY 7: Create Reusable View for Side Effects with Condition Codes
--- ============================================================================
-\echo ''
-\echo '============================================'
-\echo '📌 QUERY 7: Creating Reusable View'
-\echo '============================================'
-
-CREATE OR REPLACE VIEW app.v_side_effects_with_codes AS
-SELECT 
-    se.side_effect_id,
-    'C' || LPAD(c.condition_id::TEXT, 3, '0') AS condition_code,
-    c.condition_id,
-    c.condition_name AS side_effect_name,
-    c.condition_desc AS side_effect_description,
-    COUNT(DISTINCT mse.medication_id) AS total_medications,
-    COUNT(CASE WHEN mse.frequency = 'Common' THEN 1 END) AS common_frequency_count,
-    COUNT(CASE WHEN mse.frequency = 'Uncommon' THEN 1 END) AS uncommon_frequency_count,
-    COUNT(CASE WHEN mse.frequency = 'Rare' THEN 1 END) AS rare_frequency_count,
-    STRING_AGG(DISTINCT mse.frequency, ', ' ORDER BY mse.frequency) AS frequencies,  -- ✅ FIXED
-    STRING_AGG(
-        m.med_name || ' (' || COALESCE(mse.frequency, 'Unknown') || ')',  
-        ', ' 
-        ORDER BY m.med_name                                                 
-    ) AS medication_list
-FROM app.side_effect se
-JOIN app.condition c ON se.condition_id = c.condition_id
-LEFT JOIN app.medication_side_effect mse ON se.side_effect_id = mse.side_effect_id
-LEFT JOIN app.medication m ON mse.medication_id = m.medication_id
-GROUP BY se.side_effect_id, c.condition_id, c.condition_name, c.condition_desc
-ORDER BY total_medications DESC, c.condition_name;
-
-COMMENT ON VIEW app.v_side_effects_with_codes IS 
-'Side effects with condition codes (C001, C002, etc.) showing medication linkages';
-
-\echo '✅ View created: app.v_side_effects_with_codes'
-
--- Test the view
-SELECT * FROM app.v_side_effects_with_codes LIMIT 5;
-
--- ============================================================================
--- QUERY 8: Summary Report
--- ============================================================================
-\echo ''
-\echo '============================================'
-\echo '📊 SUMMARY REPORT'
-\echo '============================================'
-
-SELECT 
-    'Total Conditions' AS metric,
-    COUNT(*)::text AS value
-FROM app.condition
-UNION ALL
-SELECT 'Conditions Used as Side Effects', COUNT(DISTINCT se.condition_id)::text
-FROM app.side_effect se
-UNION ALL
-SELECT 'Conditions Used as Symptoms', COUNT(DISTINCT s.condition_id)::text
-FROM app.symptom s
-UNION ALL
-SELECT 'Total Medication-Side Effect Links', COUNT(*)::text
-FROM app.medication_side_effect
-UNION ALL
-SELECT 'Medications with Side Effects', COUNT(DISTINCT medication_id)::text
-FROM app.medication_side_effect
-UNION ALL
-SELECT 'Common Side Effects', COUNT(*)::text
-FROM app.medication_side_effect WHERE frequency = 'Common'
-UNION ALL
-SELECT 'Uncommon Side Effects', COUNT(*)::text
-FROM app.medication_side_effect WHERE frequency = 'Uncommon'
-UNION ALL
-SELECT 'Rare Side Effects', COUNT(*)::text
-FROM app.medication_side_effect WHERE frequency = 'Rare';
-
-\echo ''
-\echo '✅ Side Effects Query Completed Successfully!'
+\echo 'Side Effects Query Completed Successfully!'

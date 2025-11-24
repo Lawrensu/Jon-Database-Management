@@ -1,5 +1,6 @@
 -- PAKAR Tech Healthcare - Auto-Mark Missed Medications
 -- COS 20031 Database Design Project
+-- Author: Jason Hernando Kwee
 
 SET search_path TO app, public;
 

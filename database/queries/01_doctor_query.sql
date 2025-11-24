@@ -5,7 +5,7 @@
 SET search_path TO app, public;
 
 \echo '========================================'
-\echo '👨‍⚕️ Doctor Use Case Queries'
+\echo 'Doctor Use Case Queries'
 \echo '========================================'
 
 
@@ -13,13 +13,6 @@ SET search_path TO app, public;
 \echo 'STEP 1: Doctor Profile'
 \echo '----------------------------------------'
 
--- Get the first doctor who has assigned patients
-WITH doctor_with_patients AS (
-    SELECT DISTINCT p.doctor_id
-    FROM app.patient p
-    WHERE p.doctor_id IS NOT NULL
-    LIMIT 1
-)
 SELECT 
     d.doctor_id,
     u.username,
@@ -29,23 +22,18 @@ SELECT
     d.specialisation,
     d.qualification,
     d.license_num,
-    d.license_exp
+    d.license_exp,
+    d.created_at
 FROM app.doctor d
 JOIN app.user_account u ON d.user_id = u.user_id
-WHERE d.doctor_id IN (SELECT doctor_id FROM doctor_with_patients);
+WHERE d.doctor_id = 1  -- First doctor
+LIMIT 1;
 
 
 \echo ''
 \echo 'STEP 2: Assigned Patients'
 \echo '----------------------------------------'
 
--- Get patients for the first doctor with patients
-WITH selected_doctor AS (
-    SELECT DISTINCT p.doctor_id
-    FROM app.patient p
-    WHERE p.doctor_id IS NOT NULL
-    LIMIT 1
-)
 SELECT 
     p.patient_id,
     u.first_name || ' ' || u.last_name AS patient_name,
@@ -58,23 +46,16 @@ SELECT
     p.emergency_phone
 FROM app.patient p
 JOIN app.user_account u ON p.user_id = u.user_id
-WHERE p.doctor_id IN (SELECT doctor_id FROM selected_doctor)
-ORDER BY u.last_name, u.first_name;
-
+WHERE p.doctor_id = 1  -- First doctor's patients
+ORDER BY p.patient_id
+LIMIT 10;
 
 \echo ''
 \echo 'STEP 3: Patient Symptoms'
 \echo '----------------------------------------'
 
--- Get symptoms for patients assigned to first doctor
-WITH selected_doctor AS (
-    SELECT DISTINCT p.doctor_id
-    FROM app.patient p
-    WHERE p.doctor_id IS NOT NULL
-    LIMIT 1
-)
 SELECT 
-    p.patient_id,
+    ps.patient_id,
     u.first_name || ' ' || u.last_name AS patient_name,
     c.condition_name AS symptom_name,
     c.condition_desc AS symptom_description,
@@ -87,36 +68,29 @@ JOIN app.patient p ON ps.patient_id = p.patient_id
 JOIN app.user_account u ON p.user_id = u.user_id
 JOIN app.symptom s ON ps.symptom_id = s.symptom_id
 JOIN app.condition c ON s.condition_id = c.condition_id
-WHERE p.doctor_id IN (SELECT doctor_id FROM selected_doctor)
+WHERE p.doctor_id = 1  -- First doctor's patients
 ORDER BY ps.date_reported DESC
 LIMIT 10;
 
 
 \echo ''
-\echo 'STEP 4: Doctor Creates Prescription'
+\echo 'STEP 4: Create Prescription (Basic Workflow)'
+\echo '   → Prescription + Version + Schedule'
 \echo '----------------------------------------'
 
 DO $$
 DECLARE
-    new_prescription_id INT;
+    v_prescription_id INT;
+    v_prescription_version_id INT;
     v_patient_id INT;
     v_doctor_id INT;
     v_medication_id INT;
-    v_prescription_version_id INT;
 BEGIN
     -- Get first patient with assigned doctor
     SELECT patient_id, doctor_id INTO v_patient_id, v_doctor_id
     FROM app.patient
     WHERE doctor_id IS NOT NULL
     LIMIT 1;
-    
-    -- Check if we found a patient
-    IF v_patient_id IS NULL THEN
-        RAISE NOTICE '❌ No patients found with assigned doctors';
-        RAISE NOTICE 'Run this first: npm run db:connect';
-        RAISE NOTICE 'Then paste the assignment SQL from previous messages';
-        RETURN;
-    END IF;
     
     -- Get first medication
     SELECT medication_id INTO v_medication_id
@@ -130,11 +104,13 @@ BEGIN
         v_doctor_id,
         NOW(),
         'Active',
-        'Test prescription created by doctor query'
+        'Basic prescription workflow test'
     )
-    RETURNING prescription_id INTO new_prescription_id;
+    RETURNING prescription_id INTO v_prescription_id;
     
-    -- Add medication version
+    RAISE NOTICE 'Created prescription ID: %', v_prescription_id;
+    
+    -- Add prescription version (dosage)
     INSERT INTO app.prescription_version (
         prescription_id,
         medication_id,
@@ -144,12 +120,12 @@ BEGIN
         reason_for_change
     )
     VALUES (
-        new_prescription_id,
+        v_prescription_id,
         v_medication_id,
         500,
         'mg',
         NOW(),
-        'Initial prescription for testing'
+        'Initial prescription'
     )
     RETURNING prescription_version_id INTO v_prescription_version_id;
     
@@ -164,19 +140,17 @@ BEGIN
     )
     VALUES (
         v_prescription_version_id,
-        'AfterMeal'::med_timing_enum,
+        'AfterMeal',
         1,
         24,
         30,
-        'Days'::duration_unit_enum
+        'Days'
     );
     
-    RAISE NOTICE '✅ Created prescription ID: %', new_prescription_id;
-    RAISE NOTICE '✅ Patient ID: %, Doctor ID: %, Medication ID: %', 
+    RAISE NOTICE 'Patient ID: %, Doctor ID: %, Medication ID: %', 
         v_patient_id, v_doctor_id, v_medication_id;
-    RAISE NOTICE '✅ Prescription version: %, Schedule added', v_prescription_version_id;
+    RAISE NOTICE 'Prescription version: %, Schedule added', v_prescription_version_id;
 END $$;
-
 
 \echo ''
 \echo 'STEP 5: Assign Symptom to Patient'
@@ -196,10 +170,11 @@ BEGIN
     WHERE p.doctor_id IS NOT NULL
     LIMIT 1;
     
-    -- Get first symptom
+    -- Get a symptom (Headache)
     SELECT s.symptom_id, c.condition_name INTO v_symptom_id, v_symptom_name
     FROM app.symptom s
     JOIN app.condition c ON s.condition_id = c.condition_id
+    WHERE c.condition_name = 'Headache'
     LIMIT 1;
     
     -- Assign symptom to patient
@@ -213,12 +188,12 @@ BEGIN
     )
     ON CONFLICT (patient_id, symptom_id, date_reported) DO NOTHING;
     
-    RAISE NOTICE '✅ Assigned symptom "%" to patient "%"', v_symptom_name, v_patient_name;
+    RAISE NOTICE 'Assigned symptom "%" to patient "%"', v_symptom_name, v_patient_name;
 END $$;
 
 
 \echo ''
-\echo 'STEP 6: Complete Prescription Workflow'
+\echo 'STEP 6: Create Complete Prescription (Rx + Version + Schedule + Reminders + Logs)'
 \echo '----------------------------------------'
 
 DO $$
@@ -246,7 +221,7 @@ BEGIN
     VALUES (v_patient_id, v_doctor_id, NOW(), 'Active', 'Complete workflow test')
     RETURNING prescription_id INTO v_prescription_id;
     
-    RAISE NOTICE '✅ Step 1: Created prescription ID: %', v_prescription_id;
+    RAISE NOTICE 'Step 1: Created prescription ID: %', v_prescription_id;
     
     -- Step 2: Create prescription version
     INSERT INTO app.prescription_version (
@@ -350,61 +325,45 @@ WHERE pv.end_date IS NULL;
 
 \echo ''
 \echo '============================================'
-\echo '📊 SUMMARY REPORT'
+\echo 'SUMMARY REPORT'
 \echo '============================================'
 
 DO $$
 DECLARE
-    v_doctor_id INT;
     v_doctor_name TEXT;
-    v_patient_count INT;
-    v_prescription_count INT;
-    v_symptom_count INT;
+    v_assigned_patients INT;
+    v_active_prescriptions INT;
+    v_reported_symptoms INT;
 BEGIN
-    -- Get selected doctor
-    SELECT DISTINCT p.doctor_id INTO v_doctor_id
-    FROM app.patient p
-    WHERE p.doctor_id IS NOT NULL
-    LIMIT 1;
-    
-    IF v_doctor_id IS NULL THEN
-        RAISE NOTICE '❌ NO DATA: No patients assigned to doctors!';
-        RAISE NOTICE '';
-        RAISE NOTICE '🔧 FIX: Run patient-doctor assignment:';
-        RAISE NOTICE '   npm run db:connect';
-        RAISE NOTICE '   (then paste assignment SQL)';
-        RETURN;
-    END IF;
-    
-    -- Get doctor name
+    -- Get doctor info
     SELECT u.first_name || ' ' || u.last_name INTO v_doctor_name
     FROM app.doctor d
     JOIN app.user_account u ON d.user_id = u.user_id
-    WHERE d.doctor_id = v_doctor_id;
+    WHERE d.doctor_id = 1;
     
-    -- Count patients
-    SELECT COUNT(*) INTO v_patient_count
+    -- Count assigned patients
+    SELECT COUNT(*) INTO v_assigned_patients
     FROM app.patient
-    WHERE doctor_id = v_doctor_id;
+    WHERE doctor_id = 1;
     
-    -- Count prescriptions
-    SELECT COUNT(*) INTO v_prescription_count
+    -- Count active prescriptions
+    SELECT COUNT(*) INTO v_active_prescriptions
     FROM app.prescription
-    WHERE doctor_id = v_doctor_id;
+    WHERE doctor_id = 1 AND status = 'Active';
     
-    -- Count symptoms
-    SELECT COUNT(*) INTO v_symptom_count
+    -- Count reported symptoms
+    SELECT COUNT(DISTINCT ps.patient_symptom_id) INTO v_reported_symptoms
     FROM app.patient_symptom ps
     JOIN app.patient p ON ps.patient_id = p.patient_id
-    WHERE p.doctor_id = v_doctor_id;
+    WHERE p.doctor_id = 1;
     
-    RAISE NOTICE 'Doctor: % (ID: %)', v_doctor_name, v_doctor_id;
+    RAISE NOTICE 'Doctor: % (ID: 1)', v_doctor_name;
     RAISE NOTICE '----------------------------------------';
-    RAISE NOTICE 'Assigned Patients: %', v_patient_count;
-    RAISE NOTICE 'Active Prescriptions: %', v_prescription_count;
-    RAISE NOTICE 'Reported Symptoms: %', v_symptom_count;
+    RAISE NOTICE 'Assigned Patients: %', v_assigned_patients;
+    RAISE NOTICE 'Active Prescriptions: %', v_active_prescriptions;
+    RAISE NOTICE 'Reported Symptoms: %', v_reported_symptoms;
     RAISE NOTICE '========================================';
 END $$;
 
 \echo ''
-\echo '✅ Doctor queries completed successfully!'
+\echo 'Doctor queries completed successfully!'
