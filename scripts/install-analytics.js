@@ -1,60 +1,60 @@
-// Data Science Enhancement: Analytics Installer
-// Author: Cherylynn Cassidy
-
-const { execSync } = require('child_process');
+require('dotenv').config();
+const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-const analyticsDir = path.join(__dirname, '../database/analytics');
+// Database connection configuration
+const client = new Client({
+  host: process.env.POSTGRES_HOST || 'localhost',
+  port: process.env.POSTGRES_PORT || 5432,
+  database: process.env.POSTGRES_DB || 'jon_database_dev',
+  user: process.env.POSTGRES_USER || 'jondb_admin',
+  password: process.env.POSTGRES_PASSWORD || 'JonathanBangerDatabase26!',
+});
 
-console.log('========================================');
-console.log('Installing Data Science Analytics Views');
-console.log('========================================\n');
+async function installAnalytics() {
+  try {
+    await client.connect();
+    console.log('✅ Connected to database\n');
 
-try {
-  const files = fs.readdirSync(analyticsDir)
-    .filter(f => f.endsWith('.sql') && f.match(/^\d{2}_/))
-    .sort();
+    console.log('========================================');
+    console.log('Installing Data Science Analytics Views');
+    console.log('========================================\n');
 
-  if (files.length === 0) {
-    console.error('❌ No analytics SQL files found in database/analytics/');
-    process.exit(1);
-  }
+    const analyticsDir = path.join(__dirname, '..', 'database', 'analytics');
+    const files = [
+      '01_patient_risk_analytics.sql',
+      '02_temporal_analysis.sql',
+      '03_medication_effectiveness.sql',
+      '04_comorbidity_analysis.sql',
+      '05_dashboard_metrics.sql',
+      '06_ml_feature_engineering.sql'
+    ];
 
-  for (const file of files) {
-    const filePath = path.join(analyticsDir, file);
-    console.log(`📊 Installing ${file}...`);
-    
-    // Read file content and pipe to psql via stdin (works without volume mount)
-    const sqlContent = fs.readFileSync(filePath, 'utf8');
-    
-    try {
-      execSync(
-        `docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev`,
-        { 
-          input: sqlContent,
-          stdio: ['pipe', 'inherit', 'inherit']
-        }
-      );
-      console.log(`✅ ${file} installed\n`);
-    } catch (error) {
-      console.error(`❌ Failed to install ${file}`);
-      throw error;
+    for (const file of files) {
+      const filePath = path.join(analyticsDir, file);
+      console.log(`📊 Installing ${file}...`);
+      
+      const sql = fs.readFileSync(filePath, 'utf8');
+      await client.query(sql);
+      
+      console.log(`✅ Installed successfully\n`);
     }
-  }
 
-  console.log('========================================');
-  console.log('✅ All Analytics Views Installed');
-  console.log('========================================');
-  
-  // Verify installation
-  console.log('\n📊 Verifying installation...');
-  execSync(
-    `docker compose exec postgres psql -U jondb_admin -d jon_database_dev -c "SELECT schemaname, viewname FROM pg_views WHERE schemaname = 'analytics' ORDER BY viewname;"`,
-    { stdio: 'inherit' }
-  );
-  
-} catch (error) {
-  console.error('❌ Error installing analytics:', error.message);
-  process.exit(1);
+    console.log('========================================');
+    console.log('✅ All Analytics Views Installed');
+    console.log('========================================\n');
+
+  } catch (error) {
+    console.error('\n❌ Error installing analytics:');
+    console.error(error.message);
+    console.error('\nStack trace:');
+    console.error(error.stack);
+    process.exit(1);
+  } finally {
+    await client.end();
+  }
 }
+
+// Run installation
+installAnalytics();

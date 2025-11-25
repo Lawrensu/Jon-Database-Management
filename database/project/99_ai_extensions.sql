@@ -47,18 +47,27 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_table_name ON app.audit_log(table_name)
 CREATE INDEX IF NOT EXISTS idx_audit_log_changed_at ON app.audit_log(changed_at);
 
 CREATE OR REPLACE FUNCTION app.log_audit() RETURNS TRIGGER AS $$
+DECLARE
+  row_id_val TEXT;
+  row_json JSONB;
 BEGIN
   IF TG_OP = 'DELETE' THEN
+    row_json := to_jsonb(OLD);
+    row_id_val := COALESCE(row_json->>'patient_id', row_json->>'user_id', row_json->>'doctor_id', row_json->>'admin_id');
     INSERT INTO app.audit_log(table_name, operation, row_id, row_before, changed_at)
-      VALUES (TG_TABLE_NAME, 'D', COALESCE(OLD::JSON->> 'id', OLD::JSON->> 'patient_id', NULL), to_jsonb(OLD), NOW());
+      VALUES (TG_TABLE_NAME, 'D', row_id_val, row_json, NOW());
     RETURN OLD;
   ELSIF TG_OP = 'UPDATE' THEN
+    row_json := to_jsonb(NEW);
+    row_id_val := COALESCE(row_json->>'patient_id', row_json->>'user_id', row_json->>'doctor_id', row_json->>'admin_id');
     INSERT INTO app.audit_log(table_name, operation, row_id, row_before, row_after, changed_at)
-      VALUES (TG_TABLE_NAME, 'U', COALESCE(NEW::JSON->> 'id', NEW::JSON->> 'patient_id', NULL), to_jsonb(OLD), to_jsonb(NEW), NOW());
+      VALUES (TG_TABLE_NAME, 'U', row_id_val, to_jsonb(OLD), row_json, NOW());
     RETURN NEW;
   ELSIF TG_OP = 'INSERT' THEN
+    row_json := to_jsonb(NEW);
+    row_id_val := COALESCE(row_json->>'patient_id', row_json->>'user_id', row_json->>'doctor_id', row_json->>'admin_id');
     INSERT INTO app.audit_log(table_name, operation, row_id, row_after, changed_at)
-      VALUES (TG_TABLE_NAME, 'I', COALESCE(NEW::JSON->> 'id', NEW::JSON->> 'patient_id', NULL), to_jsonb(NEW), NOW());
+      VALUES (TG_TABLE_NAME, 'I', row_id_val, row_json, NOW());
     RETURN NEW;
   END IF;
   RETURN NULL;

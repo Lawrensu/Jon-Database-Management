@@ -4,16 +4,25 @@
 //   node scripts/patient_suggestion_service.js <patient_id> "patient note text"
 // IMPORTANT: Do NOT send real PII to external APIs in demos.
 
+require('dotenv').config();
 const { Client } = require('pg');
 
 const EMB_DIM = Number(process.env.EMB_DIM || 1536);
 
 function randomVecText(d) {
-  return '[' + Array.from({ length: d }, () => (Math.random() * 2 - 1).toFixed(6)).join(',') + ']';
+  const arr = [];
+  for (let i = 0; i < d; i++) arr.push((Math.random() * 2 - 1).toFixed(6));
+  return '[' + arr.join(',') + ']';
 }
 
 async function run(patientId, noteText) {
-  const client = new Client();
+  const client = new Client({
+    host: process.env.POSTGRES_HOST || 'localhost',
+    port: Number(process.env.POSTGRES_PORT || 5432),
+    user: process.env.POSTGRES_USER || 'jondb_admin',
+    password: process.env.POSTGRES_PASSWORD || 'JonathanBangerDatabase26!',
+    database: process.env.POSTGRES_DB || 'jon_database_dev'
+  });
   await client.connect();
 
   try {
@@ -33,9 +42,9 @@ async function run(patientId, noteText) {
     snippets.forEach((s, i) => console.log(`${i+1}. ${s}`));
 
     console.log('\nSuggested Actions:');
-    console.log('- Check current medications for interactions');
-    console.log('- Review adherence logs and missed doses');
-    console.log('- Consider follow-up if health_risk_score is high');
+    console.log('- Check current medications for patient', patientId);
+    console.log('- Review similar cases above for treatment patterns');
+    console.log('- Schedule follow-up based on risk assessment');
   } finally {
     await client.end();
   }

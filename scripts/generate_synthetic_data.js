@@ -3,13 +3,16 @@
 // Usage:
 //   PGHOST=localhost PGUSER=jondb_admin PGPASSWORD=... PGDATABASE=jon_database_dev NUM_INSERTS=200 node scripts/generate_synthetic_data.js
 
+require('dotenv').config();
 const { Client } = require('pg');
 
 const EMB_DIM = Number(process.env.EMB_DIM || 1536);
 const NUM_INSERTS = Number(process.env.NUM_INSERTS || 200);
 
 function randomVectorText(d) {
-  return '[' + Array.from({ length: d }, () => (Math.random() * 2 - 1).toFixed(6)).join(',') + ']';
+  const arr = [];
+  for (let i = 0; i < d; i++) arr.push((Math.random() * 2 - 1).toFixed(6));
+  return '[' + arr.join(',') + ']';
 }
 
 const notes = [
@@ -21,12 +24,18 @@ const notes = [
 ];
 
 async function main() {
-  const client = new Client();
+  const client = new Client({
+    host: process.env.POSTGRES_HOST || 'localhost',
+    port: Number(process.env.POSTGRES_PORT || 5432),
+    user: process.env.POSTGRES_USER || 'jondb_admin',
+    password: process.env.POSTGRES_PASSWORD || 'JonathanBangerDatabase26!',
+    database: process.env.POSTGRES_DB || 'jon_database_dev'
+  });
   await client.connect();
 
   try {
-    const res = await client.query('SELECT id, patient_id FROM app.patient LIMIT 50');
-    const patientIds = res.rows.map(r => r.patient_id || r.id);
+    const res = await client.query('SELECT patient_id FROM app.patient LIMIT 50');
+    const patientIds = res.rows.map(r => r.patient_id);
 
     for (let i = 0; i < NUM_INSERTS; i++) {
       const snippet = notes[i % notes.length] + ` (synthetic ${i})`;

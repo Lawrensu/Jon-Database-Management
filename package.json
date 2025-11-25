@@ -2,7 +2,13 @@
   "name": "jon-database-management",
   "version": "1.0.0",
   "description": "Database Design Project (COS 20031) - PostgreSQL 18 Setup",
-  "keywords": ["postgresql", "database", "university", "cos20031", "pakar-tech"],
+  "keywords": [
+    "postgresql",
+    "database",
+    "university",
+    "cos20031",
+    "pakar-tech"
+  ],
   "author": "Jon's Team",
   "license": "MIT",
   "scripts": {
@@ -17,15 +23,12 @@
     "db:status": "docker compose ps",
     "db:backup": "docker compose exec postgres pg_dump -U jondb_admin jon_database_dev > database/backups/backup_$(date +%Y%m%d_%H%M%S).sql",
     "pgadmin": "echo pgAdmin available at: http://localhost:8080",
-    
     "sql:run": "docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
-    
     "schema:create": "type database\\project\\01_core_schema.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "monitoring:enable": "type database\\project\\02_monitoring_triggers.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "schema:full": "npm run schema:create && npm run monitoring:enable",
     "schema:drop": "docker compose exec postgres psql -U jondb_admin -d jon_database_dev -c \"DROP SCHEMA IF EXISTS app CASCADE; CREATE SCHEMA app;\"",
     "schema:rebuild": "npm run schema:drop && npm run schema:create",
-    
     "seeds:reference": "type database\\seeds\\00_reference_data.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "seeds:patients": "type database\\seeds\\01_patients_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "seeds:doctors": "type database\\seeds\\02_doctors_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
@@ -37,27 +40,30 @@
     "seeds:medication-logs": "type database\\seeds\\08_medication_logs_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "seeds:reminders": "type database\\seeds\\09_reminders_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "seeds:run": "npm run seeds:reference && npm run seeds:patients && npm run seeds:doctors && npm run seeds:admins && npm run seeds:prescriptions && npm run seeds:prescription-versions && npm run seeds:medication-schedules && npm run seeds:patient-symptoms && npm run seeds:medication-logs && npm run seeds:reminders",
-
     "queries:validate": "type database\\queries\\00_validation_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "queries:validate:verbose": "type database\\queries\\00_validation_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "queries:test": "type database\\queries\\test_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "queries:run": "npm run queries:validate && npm run queries:test",
-
     "perf:baseline": "type database\\performance\\01_baseline_benchmark.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "perf:optimize": "type database\\performance\\02_advanced_indexes.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "perf:after": "type database\\performance\\03_after_benchmark.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "perf:report": "type database\\performance\\04_comparison_report.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "perf:demo": "type database\\performance\\05_demonstration.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
-    
     "migrate:up": "for file in database/migrations/*.sql; do type \"$file\" | npm run sql:run; done",
-    
     "project:fresh": "npm run db:reset && npm run db:start && timeout /t 30 && npm run schema:full && npm run seeds:run",
     "project:check": "npm run db:status",
-
-    "analytics:install": "node scripts/install-analytics.js",
-    "analytics:pipeline": "node scripts/analytics_pipeline.js",
+    "project:full": "npm run db:reset && npm run db:start && timeout /t 30 && npm run schema:create && npm run monitoring:enable && npm run seeds:run && npm run ai:install && npm run analytics:install && npm run ai:generate",
+    "analytics:install": "docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -f /database/analytics/00_install_all.sql",
+    "analytics:pipeline": "docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -f /database/analytics/08_analytics_report.sql",
     "analytics:test": "docker compose exec postgres psql -U jondb_admin -d jon_database_dev -c 'SELECT COUNT(*) FROM analytics.v_patient_risk_assessment;'",
+    "ai:install": "node scripts/install-ai.js",
+    "ai:generate": "node scripts/generate_synthetic_data.js",
+    "ai:suggest": "node scripts/patient_suggestion_service.js",
     "analytics:verify": "docker compose exec postgres psql -U jondb_admin -d jon_database_dev -c \"SELECT schemaname, viewname FROM pg_views WHERE schemaname = 'analytics' ORDER BY viewname;\"",
     "analytics:refresh": "docker compose exec postgres psql -U jondb_admin -d jon_database_dev -c 'SELECT analytics.refresh_dashboard_views();'"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "pg": "^8.16.3"
   }
 }
