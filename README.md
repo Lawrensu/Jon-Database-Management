@@ -853,3 +853,211 @@ await client.query(query, [patientEmbedding]);
 ```
 
 ---
+
+## Troubleshooting
+
+### Common Setup Issues
+
+#### 1. **"Cannot find module 'dotenv'" or "Cannot find module 'pg'"**
+
+**Problem:** Node.js dependencies not installed.
+
+**Solution:**
+```bash
+# Install all npm dependencies
+npm install
+
+# This will install:
+# - dotenv (environment variable management)
+# - pg (PostgreSQL client for Node.js)
+```
+
+#### 2. **Docker Init Script Error: "cannot execute: required file not found"**
+
+**Problem:** `00_setup_auth.sh` has Windows (CRLF) line endings instead of Unix (LF) format.
+
+**Solution (PowerShell):**
+```powershell
+# Convert line endings from CRLF to LF
+$content = Get-Content 'database\init\00_setup_auth.sh' -Raw
+$content = $content -replace "`r`n", "`n"
+[System.IO.File]::WriteAllText("$PWD\database\init\00_setup_auth.sh", $content, [System.Text.UTF8Encoding]::new($false))
+
+# Restart Docker containers
+docker compose down -v
+docker compose up -d
+```
+
+**Solution (Linux/macOS):**
+```bash
+# Convert line endings
+dos2unix database/init/00_setup_auth.sh
+
+# OR use sed
+sed -i 's/\r$//' database/init/00_setup_auth.sh
+
+# Restart Docker containers
+docker compose down -v
+docker compose up -d
+```
+
+#### 3. **"schema 'app' does not exist" when running AI installation**
+
+**Problem:** Database schema not initialized before running AI enhancement.
+
+**Solution - Full Setup Sequence:**
+```bash
+# Step 1: Reset database (clean slate)
+docker compose down -v
+docker compose up -d
+Start-Sleep -Seconds 15  # Wait for PostgreSQL to be ready
+
+# Step 2: Create core schema
+npm run schema:full
+# This runs:
+#   - schema:create (creates 16 tables, 8 enums, 32 indexes)
+#   - monitoring:enable (attaches 6 audit triggers)
+
+# Step 3: Load seed data
+npm run seeds:run
+# This inserts:
+#   - 200 patients
+#   - 20 doctors
+#   - 5 admins
+#   - 150 prescriptions
+#   - 2000 medication logs
+
+# Step 4: Install AI enhancement
+npm run ai:install
+# This creates:
+#   - app.embedding table (pgvector)
+#   - app.ai_audit_log table
+#   - patient.health_risk_score column
+
+# Step 5: Install Data Science analytics
+npm run analytics:install
+# This creates:
+#   - 6 analytics views
+#   - 1 materialized view (dashboard KPIs)
+
+# Step 6: Generate synthetic AI embeddings
+npm run ai:generate
+
+# Step 7: Verify everything works
+npm run analytics:pipeline
+npm run ai:suggest 1 "chest pain"
+```
+
+#### 4. **Database containers unhealthy or failing to start**
+
+**Problem:** PostgreSQL initialization failed or containers in bad state.
+
+**Solution:**
+```bash
+# Complete reset with volume removal
+docker compose down -v  # Remove volumes to force clean init
+docker compose up -d
+Start-Sleep -Seconds 15
+
+# Check container status
+docker compose ps
+
+# Check PostgreSQL logs if issues persist
+docker compose logs postgres --tail 50
+
+# Common log errors:
+# - "cannot execute: required file not found" → Fix line endings (see #2)
+# - "database already exists" → Normal on restart, ignore
+# - "permission denied" → Check Docker Desktop has file access
+```
+
+#### 5. **pgAdmin shows "Unable to connect to server"**
+
+**Problem:** pgAdmin starts before PostgreSQL is ready.
+
+**Solution:**
+```bash
+# Wait for PostgreSQL health check to pass
+docker compose ps
+
+# If postgres shows "healthy", restart pgAdmin
+docker compose restart pgadmin
+
+# Access pgAdmin at http://localhost:5050
+# Email: admin@pakartech.com
+# Password: admin123
+```
+
+### Complete Fresh Install Checklist
+
+Use this checklist if you encounter persistent issues:
+
+```bash
+# ✅ Step 1: Clean everything
+docker compose down -v
+rm -rf node_modules  # Optional: if npm issues
+npm cache clean --force  # Optional: if npm issues
+
+# ✅ Step 2: Install dependencies
+npm install
+
+# ✅ Step 3: Fix line endings (Windows only)
+$content = Get-Content 'database\init\00_setup_auth.sh' -Raw
+$content = $content -replace "`r`n", "`n"
+[System.IO.File]::WriteAllText("$PWD\database\init\00_setup_auth.sh", $content, [System.Text.UTF8Encoding]::new($false))
+
+# ✅ Step 4: Start Docker containers
+docker compose up -d
+Start-Sleep -Seconds 15
+
+# ✅ Step 5: Verify containers are healthy
+docker compose ps
+# Expected: jon-database-postgres (healthy), jon-database-pgadmin (healthy)
+
+# ✅ Step 6: Initialize database schema
+npm run schema:full
+# Expected output: "✅ All 16 tables created successfully"
+
+# ✅ Step 7: Load seed data
+npm run seeds:run
+# Expected output: "200 patients", "20 doctors", "150 prescriptions"
+
+# ✅ Step 8: Install enhancements
+npm run ai:install
+npm run analytics:install
+
+# ✅ Step 9: Generate test data
+npm run ai:generate
+
+# ✅ Step 10: Test everything works
+npm run analytics:pipeline
+npm run ai:suggest 1 "chest pain"
+npm run project:check
+```
+
+### Quick Debugging Commands
+
+```bash
+# Check if PostgreSQL is accepting connections
+docker compose exec postgres psql -U jondb_admin -d jon_database_dev -c "SELECT version();"
+
+# List all schemas
+docker compose exec postgres psql -U jondb_admin -d jon_database_dev -c "\dn"
+
+# List all tables in app schema
+docker compose exec postgres psql -U jondb_admin -d jon_database_dev -c "\dt app.*"
+
+# Check if AI enhancement is installed
+docker compose exec postgres psql -U jondb_admin -d jon_database_dev -c "SELECT COUNT(*) FROM app.embedding;"
+
+# Check if analytics views exist
+docker compose exec postgres psql -U jondb_admin -d jon_database_dev -c "SELECT COUNT(*) FROM information_schema.views WHERE table_schema = 'app' AND table_name LIKE 'v_%';"
+
+# View PostgreSQL logs in real-time
+docker compose logs -f postgres
+
+# Check container resource usage
+docker stats jon-database-postgres
+```
+
+---
