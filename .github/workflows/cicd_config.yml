@@ -12,7 +12,7 @@ jobs:
     
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: jondb_admin
           POSTGRES_PASSWORD: JonathanBangerDatabase26!
@@ -20,10 +20,10 @@ jobs:
           POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8"
         options: >-
           --health-cmd "pg_isready -U jondb_admin -d jon_database_dev"
-          --health-interval 30s
-          --health-timeout 10s
-          --health-retries 3
-          --health-start-period 40s
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 60s
         ports:
           - 5432:5432
 
@@ -38,10 +38,19 @@ jobs:
 
       - name: Wait for PostgreSQL to be ready
         run: |
-          while ! pg_isready -h localhost -U jondb_admin -d jon_database_dev; do
-            echo "Waiting for PostgreSQL to be ready..."
+          max_attempts=30
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            if pg_isready -h localhost -U jondb_admin -d jon_database_dev; then
+              echo "✅ PostgreSQL is ready!"
+              exit 0
+            fi
+            echo "⏳ Attempt $attempt/$max_attempts: Waiting for PostgreSQL..."
             sleep 2
+            attempt=$((attempt + 1))
           done
+          echo "❌ PostgreSQL failed to start"
+          exit 1
 
       - name: Run database initialization scripts
         env:
@@ -83,19 +92,21 @@ jobs:
             fi
           done
 
+      - name: Install AI Enhancement
+        env:
+          PGPASSWORD: JonathanBangerDatabase26!
+        run: |
+          psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/project/99_ai_extensions.sql
+        continue-on-error: true
+
       - name: Install Data Science Analytics
         run: npm run analytics:install
         
       - name: Verify Analytics Installation
         run: npm run analytics:verify
 
-      - name: Run Analytics Pipeline (Optional)
-        run: npm run analytics:pipeline
-        continue-on-error: true  # Don't fail if pipeline has warnings
-
       - name: Run database tests
         env:
           PGPASSWORD: JonathanBangerDatabase26!
         run: |
           psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/tests/run_all_tests_with_reporting.sql
-  
