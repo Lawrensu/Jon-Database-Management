@@ -26,10 +26,20 @@
     "schema:drop": "docker compose exec postgres psql -U jondb_admin -d jon_database_dev -c \"DROP SCHEMA IF EXISTS app CASCADE; CREATE SCHEMA app;\"",
     "schema:rebuild": "npm run schema:drop && npm run schema:create",
     
-    "seeds:reference": "type database\\seeds\\00_reference_data.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
-    "seeds:patients": "type database\\seeds\\01_patients_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
-    "seeds:doctors": "type database\\seeds\\02_doctors_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
-    "seeds:admins": "type database\\seeds\\03_admins_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
+    "queries:validate": "type database\\queries\\00_validation_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "queries:validate:verbose": "type database\\queries\\00_validation_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
+    "queries:test": "type database\\queries\\test_queries.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "queries:doctor": "type database\\queries\\01_doctor_query.sql | docker compose exec -T postgres psql -U jondb_admin -d  jon_database_dev",
+    "queries:patient": "type database\\queries\\02_patient_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "queries:sideEffects": "type database\\queries\\03_sideEffect_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "queries:admin": "type database\\queries\\04_admin_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+
+    "functions:missed": "type database\\project\\03_auto_missed_trigger.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    "functions:run-missed": "docker compose exec postgres psql -U jondb_admin -d jon_database_dev -c \"SELECT app.mark_missed_medications();\"",
+
+    "encryption:full": "type database\\project\\04_encryption.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
+    
+    "seeds:test-users": "type database\\seeds\\03_test_users.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev",
     "seeds:prescriptions": "type database\\seeds\\04_prescriptions_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "seeds:prescription-versions": "type database\\seeds\\05_prescription_versions_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "seeds:medication-schedules": "type database\\seeds\\06_medication_schedules_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
@@ -38,10 +48,6 @@
     "seeds:reminders": "type database\\seeds\\09_reminders_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "seeds:run": "npm run seeds:reference && npm run seeds:patients && npm run seeds:doctors && npm run seeds:admins && npm run seeds:prescriptions && npm run seeds:prescription-versions && npm run seeds:medication-schedules && npm run seeds:patient-symptoms && npm run seeds:medication-logs && npm run seeds:reminders",
 
-    "queries:validate": "type database\\queries\\00_validation_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
-    "queries:validate:verbose": "type database\\queries\\00_validation_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
-    "queries:test": "type database\\queries\\test_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
-    "queries:run": "npm run queries:validate && npm run queries:test",
 
     "perf:baseline": "type database\\performance\\01_baseline_benchmark.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "perf:optimize": "type database\\performance\\02_advanced_indexes.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
