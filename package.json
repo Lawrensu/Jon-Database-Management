@@ -9,6 +9,13 @@
     "cos20031",
     "pakar-tech"
   ],
+  "keywords": [
+    "postgresql",
+    "database",
+    "university",
+    "cos20031",
+    "pakar-tech"
+  ],
   "author": "Jon's Team",
   "license": "MIT",
   "scripts": {
@@ -29,6 +36,7 @@
     "schema:full": "npm run schema:create && npm run monitoring:enable",
     "schema:drop": "docker compose exec postgres psql -U jondb_admin -d jon_database_dev -c \"DROP SCHEMA IF EXISTS app CASCADE; CREATE SCHEMA app;\"",
     "schema:rebuild": "npm run schema:drop && npm run schema:create",
+    
     "seeds:reference": "type database\\seeds\\00_reference_data.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "seeds:patients": "type database\\seeds\\01_patients_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "seeds:doctors": "type database\\seeds\\02_doctors_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
@@ -40,6 +48,7 @@
     "seeds:medication-logs": "type database\\seeds\\08_medication_logs_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "seeds:reminders": "type database\\seeds\\09_reminders_seed.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "seeds:run": "npm run seeds:reference && npm run seeds:patients && npm run seeds:doctors && npm run seeds:admins && npm run seeds:prescriptions && npm run seeds:prescription-versions && npm run seeds:medication-schedules && npm run seeds:patient-symptoms && npm run seeds:medication-logs && npm run seeds:reminders",
+
     "queries:validate": "type database\\queries\\00_validation_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "queries:validate:verbose": "type database\\queries\\00_validation_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
     "queries:test": "type database\\queries\\test_query.sql | docker compose exec -T postgres psql -U jondb_admin -d jon_database_dev -a -e",
