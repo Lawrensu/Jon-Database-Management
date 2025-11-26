@@ -44,10 +44,10 @@ npm run db:connect
 \dt app.*
 
 # View a table structure
-\d+ app.patients
+\d+ app.patient
 
 # See sample data
-SELECT * FROM app.patients LIMIT 5;
+SELECT * FROM app.patient LIMIT 5;
 ```
 
 ### Phase 2: Writing Basic Queries 
@@ -69,16 +69,16 @@ SELECT
     'Patients' AS table_name, 
     COUNT(*) AS total_records,
     COUNT(CASE WHEN is_active = TRUE THEN 1 END) AS active_records
-FROM app.patients
+FROM app.patient
 UNION ALL
 SELECT 'Doctors', COUNT(*), COUNT(CASE WHEN is_active = TRUE THEN 1 END)
-FROM app.doctors
-UNION ALL
-SELECT 'Appointments', COUNT(*), COUNT(*)
-FROM app.appointments
-UNION ALL
-SELECT 'Medical Records', COUNT(*), COUNT(*)
-FROM app.medical_records
+FROM app.doctor
+-- UNION ALL
+-- SELECT 'Appointments', COUNT(*), COUNT(*)
+-- FROM app.appointments  -- removed: appointments not in canonical ERD
+-- UNION ALL
+-- SELECT 'Medical Records', COUNT(*), COUNT(*)
+-- FROM app.medical_records  -- removed: medical_records not in canonical ERD
 ORDER BY table_name;
 
 -- Query 2: Check data distribution by date
@@ -86,7 +86,7 @@ SELECT
     'Patients' AS category,
     DATE_TRUNC('month', registration_date)::DATE AS month,
     COUNT(*) AS count
-FROM app.patients
+FROM app.patient
 GROUP BY DATE_TRUNC('month', registration_date)
 ORDER BY month DESC
 LIMIT 12;
@@ -95,22 +95,22 @@ LIMIT 12;
 SELECT 
     'Appointments without patients' AS issue,
     COUNT(*) AS count
-FROM app.appointments a
-LEFT JOIN app.patients p ON a.patient_id = p.id
+-- FROM app.appointments a  -- removed: appointments not in canonical ERD
+-- LEFT JOIN app.patient p ON a.patient_id = p.id
 WHERE p.id IS NULL
 UNION ALL
 SELECT 
     'Appointments without doctors',
     COUNT(*)
-FROM app.appointments a
-LEFT JOIN app.doctors d ON a.doctor_id = d.id
+-- FROM app.appointments a  -- removed: appointments not in canonical ERD
+-- LEFT JOIN app.doctor d ON a.doctor_id = d.id
 WHERE d.id IS NULL
 UNION ALL
 SELECT 
     'Medical records without appointments',
     COUNT(*)
-FROM app.medical_records mr
-LEFT JOIN app.appointments a ON mr.appointment_id = a.id
+-- FROM app.medical_records mr  -- removed: medical_records not in canonical ERD
+-- LEFT JOIN app.appointments a ON mr.appointment_id = a.id
 WHERE a.id IS NULL;
 
 -- Query 4: Patient demographics summary
@@ -121,7 +121,7 @@ SELECT
     MIN(EXTRACT(YEAR FROM AGE(date_of_birth))) AS min_age,
     MAX(EXTRACT(YEAR FROM AGE(date_of_birth))) AS max_age,
     COUNT(CASE WHEN blood_type IS NOT NULL THEN 1 END) AS with_blood_type
-FROM app.patients
+FROM app.patient
 WHERE is_active = TRUE
 GROUP BY gender
 ORDER BY total_patients DESC;
@@ -135,10 +135,10 @@ SELECT
     COUNT(CASE WHEN s.status_name = 'Completed' THEN 1 END) AS completed,
     COUNT(CASE WHEN s.status_name IN ('Scheduled', 'Confirmed') THEN 1 END) AS upcoming,
     ROUND(AVG(a.consultation_fee), 2) AS avg_fee
-FROM app.doctors d
-LEFT JOIN app.appointments a ON d.id = a.doctor_id
-LEFT JOIN app.appointment_statuses s ON a.status_id = s.id
-LEFT JOIN app.departments dept ON d.department_id = dept.id
+FROM app.doctor d
+-- LEFT JOIN app.appointments a ON d.id = a.doctor_id
+-- LEFT JOIN app.appointment_statuses s ON a.status_id = s.id
+-- LEFT JOIN app.departments dept ON d.department_id = dept.id
 WHERE d.is_active = TRUE
 GROUP BY d.id, d.doctor_number, d.first_name, d.last_name, dept.name
 ORDER BY total_appointments DESC;
@@ -167,7 +167,7 @@ WITH monthly_revenue AS (
         SUM(consultation_fee) AS potential_revenue,
         SUM(CASE WHEN payment_status = 'Paid' THEN consultation_fee ELSE 0 END) AS actual_revenue,
         SUM(CASE WHEN payment_status = 'Pending' THEN consultation_fee ELSE 0 END) AS pending_revenue
-    FROM app.appointments
+    -- FROM app.appointments  -- removed: appointments not in canonical ERD
     WHERE appointment_date >= CURRENT_DATE - INTERVAL '12 months'
     GROUP BY DATE_TRUNC('month', appointment_date)
 )
@@ -193,10 +193,10 @@ SELECT
           NULLIF(COUNT(a.id), 0), 2) AS cancellation_rate,
     ROUND(AVG(a.consultation_fee), 2) AS avg_consultation_fee,
     ROUND(SUM(CASE WHEN a.payment_status = 'Paid' THEN a.consultation_fee ELSE 0 END), 2) AS total_revenue
-FROM app.departments dept
-LEFT JOIN app.doctors d ON dept.id = d.department_id
-LEFT JOIN app.appointments a ON d.id = a.doctor_id
-LEFT JOIN app.appointment_statuses s ON a.status_id = s.id
+-- FROM app.departments dept  -- removed: departments not in canonical ERD
+-- LEFT JOIN app.doctor d ON dept.id = d.department_id
+-- LEFT JOIN app.appointments a ON d.id = a.doctor_id
+-- LEFT JOIN app.appointment_statuses s ON a.status_id = s.id
 WHERE dept.is_active = TRUE
 GROUP BY dept.id, dept.name
 ORDER BY total_revenue DESC;
@@ -212,8 +212,8 @@ WITH patient_visits AS (
         MAX(a.appointment_date) AS last_visit,
         MIN(a.appointment_date) AS first_visit,
         EXTRACT(DAY FROM CURRENT_DATE - MAX(a.appointment_date)) AS days_since_last_visit
-    FROM app.patients p
-    LEFT JOIN app.appointments a ON p.id = a.patient_id
+    FROM app.patient p
+    -- LEFT JOIN app.appointments a ON p.id = a.patient_id
     WHERE p.is_active = TRUE
     GROUP BY p.id, p.patient_number, p.first_name, p.last_name, p.registration_date
 )
@@ -255,8 +255,8 @@ SELECT
     COUNT(CASE WHEN s.status_name = 'No Show' THEN 1 END) AS no_shows,
     ROUND(COUNT(CASE WHEN s.status_name = 'No Show' THEN 1 END) * 100.0 / 
           NULLIF(COUNT(*), 0), 2) AS no_show_rate
-FROM app.appointments a
-JOIN app.appointment_statuses s ON a.status_id = s.id
+-- FROM app.appointments a  -- removed: appointments not in canonical ERD
+-- JOIN app.appointment_statuses s ON a.status_id = s.id
 WHERE appointment_date >= CURRENT_DATE - INTERVAL '90 days'
 GROUP BY day_of_week, day_number, time_slot
 ORDER BY day_number, 
@@ -275,10 +275,10 @@ SELECT
     ROUND(AVG(EXTRACT(YEAR FROM AGE(p.date_of_birth))), 1) AS avg_patient_age,
     STRING_AGG(DISTINCT dept.name, ', ' ORDER BY dept.name) AS departments,
     COUNT(CASE WHEN mr.follow_up_required THEN 1 END) AS requires_follow_up
-FROM app.medical_records mr
-JOIN app.patients p ON mr.patient_id = p.id
-JOIN app.doctors d ON mr.doctor_id = d.id
-LEFT JOIN app.departments dept ON d.department_id = dept.id
+-- FROM app.medical_records mr  -- removed: medical_records not in canonical ERD
+JOIN app.patient p ON mr.patient_id = p.id
+JOIN app.doctor d ON mr.doctor_id = d.id
+-- LEFT JOIN app.departments dept ON d.department_id = dept.id
 WHERE mr.diagnosis IS NOT NULL
 GROUP BY mr.diagnosis
 HAVING COUNT(*) >= 3  -- Only show diagnoses with 3+ occurrences
@@ -299,10 +299,10 @@ WITH doctor_stats AS (
         COUNT(CASE WHEN s.status_name = 'No Show' THEN 1 END) AS patient_no_shows,
         AVG(a.duration_minutes) AS avg_appointment_duration,
         SUM(CASE WHEN a.payment_status = 'Paid' THEN a.consultation_fee ELSE 0 END) AS revenue_generated
-    FROM app.doctors d
-    JOIN app.departments dept ON d.department_id = dept.id
-    LEFT JOIN app.specializations spec ON d.specialization_id = spec.id
-    LEFT JOIN app.appointments a ON d.id = a.doctor_id
+    FROM app.doctor d
+--     JOIN app.departments dept ON d.department_id = dept.id
+--     LEFT JOIN app.specializations spec ON d.specialization_id = spec.id
+--     LEFT JOIN app.appointments a ON d.id = a.doctor_id
     LEFT JOIN app.appointment_statuses s ON a.status_id = s.id
     WHERE d.is_active = TRUE
     GROUP BY d.id, d.doctor_number, d.first_name, d.last_name, dept.name, spec.name
@@ -336,9 +336,9 @@ SELECT
              ELSE 'LOW RISK' END) AS risk_level,
     COUNT(DISTINCT a.id) AS total_visits,
     MAX(a.appointment_date) AS last_visit_date
-FROM app.patients p
-LEFT JOIN app.patient_allergies pa ON p.id = pa.patient_id AND pa.is_active = TRUE
-LEFT JOIN app.appointments a ON p.id = a.patient_id
+FROM app.patient p
+-- LEFT JOIN app.patient_allergies pa ON p.id = pa.patient_id AND pa.is_active = TRUE
+-- LEFT JOIN app.appointments a ON p.id = a.patient_id
 WHERE p.is_active = TRUE
 GROUP BY p.id, p.patient_number, p.first_name, p.last_name, p.date_of_birth, p.blood_type
 HAVING COUNT(DISTINCT pa.id) > 0  -- Only patients with allergies
@@ -389,7 +389,7 @@ SELECT
         ELSE 'NO ALLERGIES'
     END AS allergy_risk,
     p.is_active
-FROM app.patients p
+FROM app.patient p
 LEFT JOIN app.appointments a ON p.id = a.patient_id
 LEFT JOIN app.patient_allergies pa ON p.id = pa.patient_id AND pa.is_active = TRUE
 GROUP BY p.id;
@@ -421,8 +421,8 @@ SELECT
         ELSE 'LATER'
     END AS urgency
 FROM app.appointments a
-JOIN app.patients p ON a.patient_id = p.id
-JOIN app.doctors d ON a.doctor_id = d.id
+JOIN app.patient p ON a.patient_id = p.id
+JOIN app.doctor d ON a.doctor_id = d.id
 JOIN app.departments dept ON a.department_id = dept.id
 JOIN app.appointment_statuses s ON a.status_id = s.id
 WHERE a.appointment_date >= CURRENT_DATE
@@ -456,7 +456,7 @@ SELECT
     d.consultation_fee,
     d.is_accepting_patients,
     d.employment_type
-FROM app.doctors d
+FROM app.doctor d
 JOIN app.departments dept ON d.department_id = dept.id
 LEFT JOIN app.specializations spec ON d.specialization_id = spec.id
 LEFT JOIN app.doctor_schedules ds ON d.id = ds.doctor_id AND ds.is_active = TRUE
@@ -488,8 +488,8 @@ SELECT
     mr.respiratory_rate,
     mr.oxygen_saturation
 FROM app.medical_records mr
-JOIN app.patients p ON mr.patient_id = p.id
-JOIN app.doctors d ON mr.doctor_id = d.id
+JOIN app.patient p ON mr.patient_id = p.id
+JOIN app.doctor d ON mr.doctor_id = d.id
 LEFT JOIN app.departments dept ON d.department_id = dept.id
 LEFT JOIN app.appointments a ON mr.appointment_id = a.id
 ORDER BY p.patient_number, mr.visit_date DESC;
@@ -525,7 +525,7 @@ COMMENT ON VIEW app.v_revenue_dashboard IS 'Monthly revenue by department';
 ```sql
 -- See how PostgreSQL executes your query
 EXPLAIN ANALYZE
-SELECT * FROM app.patients p
+SELECT * FROM app.patient p
 JOIN app.appointments a ON p.id = a.patient_id
 WHERE p.is_active = TRUE;
 ```
@@ -542,7 +542,7 @@ WHERE appointment_date >= CURRENT_DATE;
 ```sql
 -- Common Table Expressions improve readability
 WITH active_patients AS (
-    SELECT * FROM app.patients WHERE is_active = TRUE
+    SELECT * FROM app.patient WHERE is_active = TRUE
 ),
 patient_appointments AS (
     SELECT patient_id, COUNT(*) as visit_count
@@ -561,11 +561,11 @@ LEFT JOIN patient_appointments pa ON ap.id = pa.patient_id;
 ### 4. Avoid SELECT *
 ```sql
 -- ❌ Bad: Retrieves all columns
-SELECT * FROM app.patients;
+SELECT * FROM app.patient;
 
 -- ✅ Good: Only retrieve what you need
 SELECT patient_number, first_name, last_name, email 
-FROM app.patients;
+FROM app.patient;
 ```
 
 ---
