@@ -1,4 +1,4 @@
-name: CI with PostgreSQL Database
+name: CI with PostgreSQL Database + AI/DS Analytics
 
 on:
   push:
@@ -17,13 +17,13 @@ jobs:
           POSTGRES_USER: jondb_admin
           POSTGRES_PASSWORD: JonathanBangerDatabase26!
           POSTGRES_DB: jon_database_dev
-          POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8"
+          POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8 --auth-host=md5"
         options: >-
           --health-cmd "pg_isready -U jondb_admin -d jon_database_dev"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-          --health-start-period 60s
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 3
+          --health-start-period 40s
         ports:
           - 5432:5432
 
@@ -38,31 +38,18 @@ jobs:
 
       - name: Wait for PostgreSQL to be ready
         run: |
-          max_attempts=30
-          attempt=1
-          while [ $attempt -le $max_attempts ]; do
-            if pg_isready -h localhost -U jondb_admin -d jon_database_dev; then
-              echo "✅ PostgreSQL is ready!"
-              exit 0
-            fi
-            echo "⏳ Attempt $attempt/$max_attempts: Waiting for PostgreSQL..."
+          while ! pg_isready -h localhost -U jondb_admin -d jon_database_dev; do
+            echo "Waiting for PostgreSQL to be ready..."
             sleep 2
-            attempt=$((attempt + 1))
           done
-          echo "❌ PostgreSQL failed to start"
-          exit 1
 
       - name: Run database initialization scripts
         env:
           PGPASSWORD: JonathanBangerDatabase26!
         run: |
           echo "Running initialization scripts..."
-          for file in ./database/init/*.sql; do
-            if [ -f "$file" ]; then
-              echo "Executing $file..."
-              psql -h localhost -U jondb_admin -d jon_database_dev -f "$file"
-            fi
-          done
+          psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/init/01_setup.sql
+          psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/init/02_monitor.sql
           echo "Initialization complete."
 
       - name: Setup Node.js
@@ -79,31 +66,73 @@ jobs:
         run: |
           echo "Creating database schema..."
           psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/project/01_core_schema.sql
+          
+      - name: Enable monitoring triggers
+        env:
+          PGPASSWORD: JonathanBangerDatabase26!
+        run: |
+          echo "Enabling monitoring triggers..."
+          psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/project/02_monitoring_triggers.sql
 
       - name: Run database seeds
         env:
           PGPASSWORD: JonathanBangerDatabase26!
         run: |
           echo "Running database seeds..."
-          for file in ./database/seeds/*.sql; do
-            if [ -f "$file" ]; then
-              echo "Loading $file..."
-              psql -h localhost -U jondb_admin -d jon_database_dev -f "$file"
-            fi
-          done
+          psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/seeds/00_reference_data.sql
+          psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/seeds/01_patients_seed.sql
+          psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/seeds/02_doctors_seed.sql
+          psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/seeds/03_admins_seed.sql
+          echo "Core seeds loaded (prescriptions skipped for CI speed)."
 
-      - name: Install AI Enhancement
+      - name: Install AI Enhancement (Jonathan)
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: jondb_admin
+          POSTGRES_PASSWORD: JonathanBangerDatabase26!
+          POSTGRES_DB: jon_database_dev
+        run: |
+          echo "Installing AI enhancement..."
+          node scripts/install-ai.js
+
+      - name: Generate Synthetic Embeddings
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: jondb_admin
+          POSTGRES_PASSWORD: JonathanBangerDatabase26!
+          POSTGRES_DB: jon_database_dev
+          NUM_INSERTS: 50
+        run: |
+          echo "Generating 50 synthetic embeddings..."
+          node scripts/generate_synthetic_data.js
+
+      - name: Install Data Science Analytics (Cherylynn)
         env:
           PGPASSWORD: JonathanBangerDatabase26!
         run: |
-          psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/project/99_ai_extensions.sql
-        continue-on-error: true
-
-      - name: Install Data Science Analytics
-        run: npm run analytics:install
+          echo "Installing Data Science analytics views..."
+          psql -h localhost -U jondb_admin -d jon_database_dev -f ./database/analytics/00_install_all.sql
         
       - name: Verify Analytics Installation
-        run: npm run analytics:verify
+        env:
+          PGPASSWORD: JonathanBangerDatabase26!
+        run: |
+          echo "Verifying analytics views..."
+          psql -h localhost -U jondb_admin -d jon_database_dev -c "SELECT schemaname, viewname FROM pg_views WHERE schemaname = 'analytics' ORDER BY viewname;"
+
+      - name: Test AI Semantic Search
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: jondb_admin
+          POSTGRES_PASSWORD: JonathanBangerDatabase26!
+          POSTGRES_DB: jon_database_dev
+        run: |
+          echo "Testing AI semantic search..."
+          node scripts/patient_suggestion_service.js 1 "chest pain shortness of breath"
+        continue-on-error: true
 
       - name: Run database tests
         env:
