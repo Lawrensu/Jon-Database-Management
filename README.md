@@ -862,7 +862,7 @@ await client.query(query, [patientEmbedding]);
 ---
 
 ### Jason Hernando Kwee (Cyber Security)
-** Database Encryption with PostgreSQL pgcrypto (AES-128) **
+**Database Encryption with PostgreSQL pgcrypto (AES-128)**
 
 This enhancement implements comprehensive symmetric encryption for sensitive patient data using PostgreSQL's built-in pgcrypto extension, ensuring HIPAA/GDPR compliance while maintaining query performance through secure views and transparent decryption.
 
