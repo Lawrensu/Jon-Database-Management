@@ -26,11 +26,12 @@ async function run(patientId, noteText) {
   await client.connect();
 
   try {
+    // Set search path to include app schema for vector type
+    await client.query('SET search_path TO app, public;');
     
-    await client.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
+    // In dev: fake embedding; replace with real embedding call for production
     const emb = randomVecText(EMB_DIM);
 
-    // FIX: Cast the vector parameter explicitly
     const sql = `
       SELECT source_table, source_id, text_snippet
       FROM app.embedding
@@ -38,8 +39,15 @@ async function run(patientId, noteText) {
       LIMIT 5;
     `;
     const res = await client.query(sql, [emb]);
-    
-    // ...rest of the code...
+    const snippets = res.rows.map(r => r.text_snippet).filter(Boolean);
+
+    console.log('Top retrieved snippets:');
+    snippets.forEach((s, i) => console.log(`${i+1}. ${s}`));
+
+    console.log('\nSuggested Actions:');
+    console.log('- Check current medications for patient', patientId);
+    console.log('- Review similar cases above for treatment patterns');
+    console.log('- Schedule follow-up based on risk assessment');
   } finally {
     await client.end();
   }

@@ -113,7 +113,7 @@ END$$;
 -- Health risk scoring (heuristic example). Tune or replace with ML model later.
 ALTER TABLE app.patient ADD COLUMN IF NOT EXISTS health_risk_score NUMERIC(4,2) DEFAULT 0.00;
 
-CREATE OR REPLACE FUNCTION app.compute_health_risk(p_patient_id TEXT) RETURNS NUMERIC AS $$
+CREATE OR REPLACE FUNCTION app.compute_health_risk(p_patient_id INT) RETURNS NUMERIC AS $$
 DECLARE
   age INT := 0;
   cond_count INT := 0;
@@ -122,17 +122,17 @@ DECLARE
 BEGIN
   -- attempt to read birth_date safely; adjust field names for your schema if different
   BEGIN
-    SELECT EXTRACT(YEAR FROM AGE(CURRENT_DATE, birth_date))::INT INTO age FROM app.patient WHERE COALESCE(id::text, patient_id::text) = p_patient_id LIMIT 1;
+    SELECT EXTRACT(YEAR FROM AGE(CURRENT_DATE, birth_date))::INT INTO age FROM app.patient WHERE patient_id = p_patient_id LIMIT 1;
   EXCEPTION WHEN OTHERS THEN
     age := 0;
   END;
 
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='app' AND table_name='patient_symptom') THEN
-    SELECT COUNT(*) INTO cond_count FROM app.patient_symptom WHERE COALESCE(patient_id::text, '') = p_patient_id;
+    SELECT COUNT(*) INTO cond_count FROM app.patient_symptom WHERE patient_id = p_patient_id AND date_resolved IS NULL;
   END IF;
 
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='app' AND table_name='medication_log') THEN
-    SELECT COUNT(*) INTO recent_missed FROM app.medication_log WHERE COALESCE(patient_id::text, '') = p_patient_id AND scheduled_time >= NOW() - INTERVAL '90 days' AND status = 'Missed';
+    SELECT COUNT(*) INTO recent_missed FROM app.medication_log WHERE patient_id = p_patient_id AND scheduled_time >= NOW() - INTERVAL '90 days' AND status = 'Missed';
   END IF;
 
   score := LEAST(1.0,
@@ -149,7 +149,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION app.patient_set_risk_trigger() RETURNS TRIGGER AS $$
 BEGIN
-  NEW.health_risk_score := app.compute_health_risk(COALESCE(NEW.id::text, NEW.patient_id::text));
+  NEW.health_risk_score := app.compute_health_risk(NEW.patient_id);
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -161,9 +161,9 @@ CREATE TRIGGER trg_patient_set_risk BEFORE INSERT OR UPDATE ON app.patient
 CREATE OR REPLACE FUNCTION app.recompute_patient_risk_after_mod() RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'DELETE' THEN
-    UPDATE app.patient SET health_risk_score = app.compute_health_risk(COALESCE(OLD.id::text, OLD.patient_id::text)) WHERE COALESCE(id::text, patient_id::text) = COALESCE(OLD.id::text, OLD.patient_id::text);
+    UPDATE app.patient SET health_risk_score = app.compute_health_risk(OLD.patient_id) WHERE patient_id = OLD.patient_id;
   ELSE
-    UPDATE app.patient SET health_risk_score = app.compute_health_risk(COALESCE(NEW.id::text, NEW.patient_id::text)) WHERE COALESCE(id::text, patient_id::text) = COALESCE(NEW.id::text, NEW.patient_id::text);
+    UPDATE app.patient SET health_risk_score = app.compute_health_risk(NEW.patient_id) WHERE patient_id = NEW.patient_id;
   END IF;
   RETURN NULL;
 END;
