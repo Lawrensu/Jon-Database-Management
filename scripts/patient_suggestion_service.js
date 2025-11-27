@@ -26,6 +26,8 @@ async function run(patientId, noteText) {
   await client.connect();
 
   try {
+    
+    await client.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
     const emb = randomVecText(EMB_DIM);
 
     // FIX: Cast the vector parameter explicitly
