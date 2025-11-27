@@ -12,7 +12,7 @@ jobs:
     
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        image: postgres:16
         env:
           POSTGRES_USER: jondb_admin
           POSTGRES_PASSWORD: JonathanBangerDatabase26!
@@ -42,6 +42,15 @@ jobs:
             echo "Waiting for PostgreSQL to be ready..."
             sleep 2
           done
+
+      - name: Install PGVector
+        run: |
+          echo "Installing pgvector extension package inside Postgres container..."
+          CID=${{ job.services.postgres.id }}
+          # Update apt and install pgvector for Postgres 16 inside the service container
+          docker exec "$CID" bash -lc "apt-get update && apt-get install -y postgresql-16-pgvector && rm -rf /var/lib/apt/lists/*"
+          echo "Creating pgvector extension..."
+          PGPASSWORD=JonathanBangerDatabase26! psql -h localhost -U jondb_admin -d jon_database_dev -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
       - name: Run database initialization scripts
         env:
