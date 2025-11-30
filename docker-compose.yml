@@ -2,6 +2,10 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: jon-database-postgres
+
+    env_file:
+      - .env
+
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-jondb_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-JonathanBangerDatabase26!}
@@ -29,6 +33,10 @@ services:
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: jon-database-pgadmin
+  
+    env_file:
+      - .env
+
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-jonAdmin@database.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-JonathanPGAdmin26!}

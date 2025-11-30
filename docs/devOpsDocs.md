@@ -43,7 +43,7 @@ npm run db:connect
 ```
 
 **Your infrastructure includes:**
-- **PostgreSQL 18** - Main database server (port 5432)
+- **PostgreSQL 16** - Main database server (port 5432)
 - **pgAdmin** - Web interface (port 8080)
 - **Docker Volumes** - Persistent data storage
 - **Docker Network** - Internal communication
@@ -885,7 +885,6 @@ CONFLICT (content): Merge conflict in database/project/01_core_schema.sql
 1. Check this troubleshooting guide
 2. Check `npm run db:logs` for error messages
 3. Search error message online
-4. Check PostgreSQL docs: https://www.postgresql.org/docs/18/
 
 ### Team Support
 1. Post in team chat with:

@@ -16,7 +16,7 @@ echo "🔍 Checking prerequisites..."
 if ! command -v docker &> /dev/null; then
     echo "❌ Docker is not installed!"
     echo "📖 Please install Docker Desktop from: https://www.docker.com/get-started"
-    echo "💡 This is required for running PostgreSQL 18"
+    echo "💡 This is required for running PostgreSQL 16"
     exit 1
 fi
 
@@ -64,7 +64,7 @@ echo "✅ Directory structure ready"
 
 # Start the database services
 echo ""
-echo "🚀 Starting PostgreSQL 18 and pgAdmin..."
+echo "🚀 Starting PostgreSQL 16 and pgAdmin..."
 echo "   PostgreSQL: Latest version with advanced features"
 echo "   pgAdmin: Web-based database management interface"
 
@@ -78,7 +78,7 @@ echo "   This may take 30-60 seconds for first-time setup..."
 for i in {1..120}; do
     if $COMPOSE_CMD exec -T postgres pg_isready -U jondb_admin > /dev/null 2>&1; then
         echo ""
-        echo "✅ PostgreSQL 18 is ready and healthy!"
+        echo "✅ PostgreSQL 16 is ready and healthy!"
         break
     fi
     
@@ -110,7 +110,7 @@ echo ""
 echo "🎉 Jon's Database Management Project Setup Complete!"
 echo "======================================================"
 echo ""
-echo "📊 PostgreSQL 18 Database:"
+echo "   📊 PostgreSQL 16 Database:"
 echo "   🌐 Host: localhost"
 echo "   🔌 Port: 5432"
 echo "   🗄️  Database: jon_database_dev"
