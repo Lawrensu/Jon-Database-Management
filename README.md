@@ -222,77 +222,124 @@ npm run project:check  # Check if everything is running
 ## Project Structure
 
 ```
-Jon-Database-Management/
+on-Database-Management/
 ├── .github/
 │   └── workflows/
-│       └── cicd_config.yml
+│       └── cicd_config.yml              # CI/CD pipeline configuration
 │
 ├── database/
-│   ├── backups/
+│   ├── analytics/                        # Data Science Enhancement (Cherylynn)
+│   │   ├── 00_install_all.sql
+│   │   ├── 01_patient_risk_analytics.sql
+│   │   ├── 02_temporal_analysis.sql
+│   │   ├── 03_medication_effectiveness.sql
+│   │   ├── 04_comorbidity_analysis.sql
+│   │   ├── 05_dashboard_metrics.sql
+│   │   ├── 06_ml_feature_engineering.sql
+│   │   └── analytics.md                 # Full documentation
 │   │
-│   ├── init/
-│   │   ├── 01_setup.sql
-│   │   └── 02_monitor.sql
+│   ├── backups/                          # Database backups location
+│   │   └── .gitkeep
 │   │
-│   ├── migrations/
-│   │   └── (empty - not needed unless actual production)
+│   ├── init/                             # Initialization scripts (run on first startup)
+│   │   ├── 01_setup.sql                 # Extensions, schemas, basic setup
+│   │   └── 02_monitor.sql               # Security monitoring infrastructure
 │   │
-│   ├── performance/
+│   ├── performance/                      # Performance Enhancement (Lawrence)
 │   │   ├── 01_baseline_benchmark.sql
 │   │   ├── 02_advanced_indexes.sql
 │   │   ├── 03_after_benchmark.sql
 │   │   ├── 04_comparison_report.sql
 │   │   ├── 05_demonstration.sql
-│   │   ├── benchmarks_guide/
-│   │   │   ├── after_results.txt
-│   │   │   ├── before_results.txt
-│   │   │   ├── benchmark.md
-│   │   │   ├── comparison_report.txt
-│   │   │   ├── explain_plans.txt
-│   │   │   ├── testingGuide.md
-│   │   │   └── screenshots/
-│   │   └── materialized_views/
-│   │       └── 01_patient_analytics_mv.sql
+│   │   └── benchmarks_guide/
+│   │       ├── after_results.txt
+│   │       ├── before_results.txt
+│   │       ├── benchmark.md
+│   │       ├── comparison_report.txt
+│   │       ├── explain_plans.txt
+│   │       ├── testingGuide.md
+│   │       └── screenshots/
 │   │
-│   ├── project/
-│   │   ├── 01_core_schema.sql
-│   │   ├── 02_monitoring_triggers.sql
-│   │   └── databaseSchema.md
+│   ├── project/                          # Core database schema
+│   │   ├── 01_core_schema.sql           # 16 tables, 8 enums, 32 indexes
+│   │   ├── 02_monitoring_triggers.sql   # Security audit triggers
+│   │   ├── 04_encryption.sql            # Encryption implementation (Jason)
+│   │   ├── 99_ai_extensions.sql         # AI enhancement (Jonathan)
+│   │   └── databaseSchema.md            # Complete schema documentation
 │   │
-│   ├── queries/
+│   ├── queries/                          # Test and validation queries
 │   │   ├── 00_validation_query.sql
 │   │   ├── test_query.sql
 │   │   └── testQuery.md
 │   │
-│   ├── seeds/
-│   │   ├── 00_reference_data.sql
-│   │   ├── 01_patients_seed.sql
-│   │   ├── 02_doctors_seed.sql
-│   │   ├── 03_admins_seed.sql
-│   │   ├── 04_prescriptions_seed.sql
-│   │   └── seeds.md
-│   │
-│   └── tests/
+│   └── seeds/                            # Sample data (Cherylynn)
+│       ├── 00_reference_data.sql        # Conditions, symptoms, medications
+│       ├── 01_patients_seed.sql         # 200 patients
+│       ├── 02_doctors_seed.sql          # 20 doctors
+│       ├── 03_admins_seed.sql           # 5 admin accounts
+│       ├── 04_prescriptions_seed.sql    # 300 prescriptions
+│       ├── 05_prescription_versions_seed.sql
+│       ├── 06_medication_schedules_seed.sql
+│       ├── 07_patient_symptoms_seed.sql
+│       ├── 08_medication_logs_seed.sql
+│       ├── 10_synthetic_embeddings.sql  # AI test data
+│       ├── seeds.md                     # Seed data documentation
+│       └── AI_EMBEDDINGS_DEV.md         # AI embedding guide
 │
-├── docs/
-│   ├── design/
-│   │
-│   ├── guides/
-│   │   ├── git-workflow.md
-│   │
-│   └── devOpsDocs.md
+├── docs/                                 # Documentation
+│   ├── AI_QUICKSTART.md                 # AI enhancement quick start
+│   ├── devOpsDocs.md                    # Operations guide
+│   ├── Jon-Database-ERD.drawio          # Database ERD diagram
+│   └── guides/
+│       └── git-workflow.md
 │
-├── scripts/
-│   └── setup-database.sh
+├── scripts/                              # Automation scripts
+│   ├── analytics_pipeline.js            # Analytics dashboard runner
+│   ├── generate_synthetic_data.js       # AI embedding generator
+│   ├── install-ai.js                    # AI enhancement installer
+│   ├── install-analytics.js             # Analytics installer
+│   ├── patient_suggestion_service.js    # AI suggestion service
+│   └── setup-database.sh                # Initial database setup
 │
-├── .env
-├── .env.example
-├── .gitignore
-├── .psqlrc
-├── docker-compose.yml
-├── package.json
-└── README.md
+├── .env                                  # Environment variables (DO NOT COMMIT)
+├── .env.example                         # Environment template
+├── .gitignore                           # Git ignore rules
+├── .psqlrc                              # PostgreSQL client configuration
+├── docker-compose.yml                   # Docker container configuration
+├── package.json                         # Node.js dependencies & scripts
+└── README.md                            # This file
 ```
+
+### Key Directories Explained
+
+**`database/analytics/`** - Cherylynn's Data Science Enhancement
+- 6 SQL files creating 8 analytics views
+- Statistical risk models and predictive analytics
+- Integration with Jonathan's AI enhancement
+
+**`database/performance/`** - Lawrence's Performance Enhancement
+- 4 advanced indexing strategies
+- BEFORE/AFTER benchmarking system
+- Query optimization demonstrations
+
+**`database/project/`** - Core Schema & Enhancements
+- `01_core_schema.sql` - 16 core tables (Lawrence & Jonathan)
+- `02_monitoring_triggers.sql` - Security audit system (Faisal)
+- `04_encryption.sql` - AES-128 encryption (Jason)
+- `99_ai_extensions.sql` - Vector embeddings & risk scoring (Jonathan)
+
+**`database/seeds/`** - Sample Data
+- Reference data (conditions, symptoms, medications)
+- 200 patients, 20 doctors, 5 admins
+- 300+ prescriptions with schedules and logs
+- Synthetic AI embeddings for testing
+
+**`scripts/`** - Automation
+- `install-ai.js` - Install AI enhancement
+- `install-analytics.js` - Install analytics views
+- `analytics_pipeline.js` - Run analytics dashboard
+- `generate_synthetic_data.js` - Create test embeddings
+- `patient_suggestion_service.js` - AI suggestion API
 
 ---
 
