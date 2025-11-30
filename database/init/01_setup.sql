@@ -1,4 +1,4 @@
--- PostgreSQL 18 Database Initialization 
+-- PostgreSQL 16 Database Initialization 
 -- Note: This script runs automatically when the database is first created
 
 -- Essential extensions 
@@ -15,6 +15,7 @@ CREATE SCHEMA IF NOT EXISTS app;
 CREATE SCHEMA IF NOT EXISTS logs;
 
 -- Create a dedicated application user (recommended for production-like setup)
+-- If in actual production, change to development password instead of production password.
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'app_user') THEN
@@ -32,7 +33,7 @@ DO $$
 BEGIN
     RAISE NOTICE '========================================';
     RAISE NOTICE 'Jon Database Management Project';
-    RAISE NOTICE 'PostgreSQL 18 Database Initialized!';
+    RAISE NOTICE 'PostgreSQL 16 Database Initialized!';
     RAISE NOTICE '========================================';
     RAISE NOTICE 'Database: jon_database_dev';
     RAISE NOTICE 'Extensions: uuid-ossp, pgcrypto, citext';

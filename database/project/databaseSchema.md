@@ -2,7 +2,7 @@
 
 **Project:** Database Design Project (COS 20031)  
 **Team:** Lawrence, Jonathan, Cherrylyn, Jason, Faisal  
-**Database:** PostgreSQL 18  
+**Database:** PostgreSQL 16 
 **Last Updated:** January 2025
 
 ---

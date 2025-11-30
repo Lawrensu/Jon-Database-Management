@@ -4,11 +4,11 @@ const fs = require('fs');
 const path = require('path');
 
 const client = new Client({
-  host: process.env.POSTGRES_HOST || 'localhost',
-  port: process.env.POSTGRES_PORT || 5432,
-  database: process.env.POSTGRES_DB || 'jon_database_dev',
-  user: process.env.POSTGRES_USER || 'jondb_admin',
-  password: process.env.POSTGRES_PASSWORD || 'JonathanBangerDatabase26!',
+  host: process.env.POSTGRES_HOST,
+  port: Number(process.env.POSTGRES_PORT),
+  user: process.env.POSTGRES_USER,
+  password: process.env.POSTGRES_PASSWORD,
+  database: process.env.POSTGRES_DB
 });
 
 async function installAI() {

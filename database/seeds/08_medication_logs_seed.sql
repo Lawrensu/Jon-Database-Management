@@ -84,11 +84,11 @@ BEGIN
     RAISE NOTICE 'Medication Log Seed Data Loaded';
     RAISE NOTICE '========================================';
     RAISE NOTICE 'Total Log Entries: %', total_logs;
-    RAISE NOTICE '  Taken: % (%%)', taken_count, adherence_rate;
+    RAISE NOTICE '  Taken: % (%)', taken_count, ROUND(taken_count * 100.0 / NULLIF(total_logs, 0), 2);  
     RAISE NOTICE '  Missed: %', missed_count;
     RAISE NOTICE '  Skipped: %', skipped_count;
     RAISE NOTICE '';
-    RAISE NOTICE 'Overall Adherence Rate: %%', adherence_rate;
+    RAISE NOTICE 'Overall Adherence Rate: %%', ROUND(taken_count * 100.0 / NULLIF(total_logs, 0), 2);  -- ✅ FIXED
     RAISE NOTICE 'Unique Patients: %', unique_patients;
     RAISE NOTICE 'Unique Medications: %', unique_medications;
     RAISE NOTICE '';

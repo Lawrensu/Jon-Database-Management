@@ -2,7 +2,7 @@
 
 **Database Design Project (COS 20031) - Year 2, Semester 1**
 
-Modern PostgreSQL 18 database setup for PAKAR Tech Healthcare.
+Modern PostgreSQL 16 (with pgvector) database setup for PAKAR Tech Healthcare.
 
 ## Prerequisites & Installation
 
@@ -38,7 +38,7 @@ npm run db:setup
 
 **What this does:**
 - Creates your `.env` file from the template
-- Downloads PostgreSQL 18 and pgAdmin images
+- Downloads PostgreSQL 16 and pgAdmin images
 - Creates database containers
 - Initializes the database with schemas and extensions
 - Starts all services
