@@ -37,8 +37,8 @@ lerna-debug.log*
 # Database dumps and backups (except examples)
 *.dump
 *.backup
-database/backups/*.sql
-!database/backups/example.sql
+database/backups/*
+!database/backups/.gitkeep
 
 # Environment files with secrets
 .env

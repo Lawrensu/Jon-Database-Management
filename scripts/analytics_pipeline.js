@@ -109,10 +109,10 @@ async function runAnalyticsPipeline() {
     console.log('🔬 Top Disease Comorbidities:');
     const comorbidities = await client.query(`
       SELECT 
-        condition_a,
-        condition_b,
+        condition_1,
+        condition_2,
         co_occurrence_count,
-        ROUND(correlation_strength, 2) as correlation_strength
+        ROUND(prevalence_percentage, 2) as prevalence_percentage
       FROM analytics.v_condition_correlations
       ORDER BY co_occurrence_count DESC
       LIMIT 5;
@@ -152,7 +152,7 @@ async function runAnalyticsPipeline() {
     const medicationCount = await client.query(`SELECT COUNT(DISTINCT med_name) as count FROM analytics.v_medication_effectiveness;`);
     console.log(`Medications Tracked: ${medicationCount.rows[0].count}`);
 
-    const comorbidityCount = await client.query(`SELECT COUNT(*) as count FROM analytics.v_condition_correlations WHERE correlation_strength >= 0.5;`);
+    const comorbidityCount = await client.query(`SELECT COUNT(*) as count FROM analytics.v_condition_correlations WHERE co_occurrence_count >= 3;`);
     console.log(`Comorbidity Patterns: ${comorbidityCount.rows[0].count}`);
 
     console.log('\n========================================');
