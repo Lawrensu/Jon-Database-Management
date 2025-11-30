@@ -35,7 +35,7 @@ async function run(patientId, noteText) {
     const sql = `
       SELECT source_table, source_id, text_snippet
       FROM app.embedding
-      ORDER BY embedding <-> $1::vector
+      ORDER BY embedding <-> $1::app.vector
       LIMIT 5;
     `;
     const res = await client.query(sql, [emb]);
